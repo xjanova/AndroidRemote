@@ -79,10 +79,22 @@ jobs:
             echo "has_key=false" >> "$GITHUB_OUTPUT"
             echo "::warning::ไม่มี secret ANDROID_KEYSTORE_BASE64 — จะข้ามการสร้าง APK"
             echo "::warning::สร้างกุญแจด้วย node scripts/make-release-key.mjs แล้วตั้ง secret ก่อน"
-          else
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
-            echo "has_key=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          # 🔑 ต้องล้าง CR กับช่องว่างก่อนถอดรหัสเสมอ
+          #    ถ้าตั้ง secret จากเชลล์ของ Windows ค่าจะมี \r ติดมา แล้ว base64
+          #    จะตอบแค่ "invalid input" โดยไม่บอกว่าเพราะอะไร (เสียเวลาไปหนึ่งรอบ)
+          printf '%s' "$KEYSTORE_B64" | tr -d '\r\n \t' | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+          # ตรวจว่าได้ keystore จริง ไม่ใช่ไฟล์ว่างหรือขยะ — ล้มตรงนี้ดีกว่าไปตายตอนเซ็น
+          if [ ! -s "$RUNNER_TEMP/release.keystore" ]; then
+            echo "::error::ถอดรหัส keystore แล้วได้ไฟล์ว่าง — ตรวจ secret ANDROID_KEYSTORE_BASE64"
+            exit 1
+          fi
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > /dev/null
+          echo "has_key=true" >> "$GITHUB_OUTPUT"
 
       - name: สร้าง APK แอปคู่หู
         if: steps.keystore.outputs.has_key == 'true'
