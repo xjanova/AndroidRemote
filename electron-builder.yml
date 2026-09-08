@@ -50,3 +50,7 @@ publish:
   provider: github
   owner: xjanova
   repo: AndroidRemote
+  # 🔑 ค่าเริ่มต้นของ electron-builder คือ draft ซึ่ง **electron-updater มองไม่เห็น**
+  #    ปล่อยไว้แบบนั้น = ตัวติดตั้งขึ้น Release แล้วแต่ไม่มีเครื่องไหนอัปเดตได้เลย
+  #    และไม่มี error อะไรให้เห็นด้วย แอปจะรายงานแค่ว่าเป็นเวอร์ชันล่าสุดแล้ว
+  releaseType: release
