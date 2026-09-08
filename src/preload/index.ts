@@ -12,6 +12,7 @@ import {
   type LogEntry,
   type MirrorHeader,
   type MirrorPacket,
+  type UpdateStateView,
 } from '../shared/api';
 import type {
   AdbStatus,
@@ -52,6 +53,11 @@ const api: AndroidRemoteApi = {
   forgetDevice: (serial) => ipcRenderer.invoke(IPC.forgetDevice, serial) as Promise<void>,
   setAutoConnect: (serial, on) => ipcRenderer.invoke(IPC.setAutoConnect, serial, on) as Promise<void>,
 
+  updateState: () => ipcRenderer.invoke(IPC.updateState),
+  updateCheck: () => ipcRenderer.invoke(IPC.updateCheck),
+  updateDownload: () => ipcRenderer.invoke(IPC.updateDownload) as Promise<void>,
+  updateInstall: () => ipcRenderer.send(IPC.updateInstall),
+
   gamepadState: () => ipcRenderer.invoke(IPC.gamepadState),
   gamepadStart: () => ipcRenderer.invoke(IPC.gamepadStart),
   gamepadStop: () => ipcRenderer.invoke(IPC.gamepadStop),
@@ -76,6 +82,7 @@ const api: AndroidRemoteApi = {
   onWindowStateChanged: (cb) => subscribe<{ maximized: boolean }>(IPC.evtWindowState, cb),
   onDiscoveryChanged: (cb) => subscribe<DiscoveryState>(IPC.evtDiscoveryChanged, cb),
   onGamepadChanged: (cb) => subscribe<GamepadStateView>(IPC.evtGamepadChanged, cb),
+  onUpdateChanged: (cb) => subscribe<UpdateStateView>(IPC.evtUpdateChanged, cb),
   onMirrorHeader: (cb) => subscribe<MirrorHeader>(IPC.evtMirrorHeader, cb),
   onMirrorPacket: (cb) => subscribe<MirrorPacket>(IPC.evtMirrorPacket, cb),
   onMirrorClosed: (cb) => subscribe<string>(IPC.evtMirrorClosed, cb),

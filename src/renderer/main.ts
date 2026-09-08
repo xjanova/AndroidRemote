@@ -7,7 +7,7 @@
  */
 
 import { CAPABILITIES, type CapabilityId, type DeviceInfo, type PrivilegeTier } from '../shared/types';
-import type { AndroidRemoteApi, LogEntry, MirrorHeader } from '../shared/api';
+import type { AndroidRemoteApi, LogEntry, MirrorHeader, UpdateStateView } from '../shared/api';
 import type { AdbStatus } from '../shared/types';
 import { VideoSink } from './video';
 import { openWirelessDialog } from './wireless';
@@ -425,6 +425,38 @@ function renderStage(): void {
   el('stage-camera').addEventListener('click', () => openCameras());
 }
 
+/**
+ * ช่องอัปเดตในแถบสถานะ — โผล่เฉพาะตอนมีอะไรให้ทำจริงๆ
+ * ไม่ขึ้น "เป็นเวอร์ชันล่าสุดแล้ว" ค้างไว้ให้รก
+ */
+function renderUpdateCell(state: UpdateStateView): void {
+  const cell = el('status-update');
+
+  if (state.stage === 'available') {
+    cell.hidden = false;
+    cell.style.cursor = 'pointer';
+    cell.textContent = `มีเวอร์ชัน ${state.newVersion} — กดเพื่อดาวน์โหลด`;
+    cell.onclick = () => void api.updateDownload();
+    return;
+  }
+  if (state.stage === 'downloading') {
+    cell.hidden = false;
+    cell.style.cursor = 'default';
+    cell.textContent = `กำลังดาวน์โหลด ${state.percent ?? 0}%`;
+    cell.onclick = null;
+    return;
+  }
+  if (state.stage === 'ready') {
+    cell.hidden = false;
+    cell.style.cursor = 'pointer';
+    cell.textContent = `พร้อมติดตั้ง ${state.newVersion} — กดเพื่อรีสตาร์ท`;
+    cell.onclick = () => api.updateInstall();
+    return;
+  }
+  cell.hidden = true;
+  cell.onclick = null;
+}
+
 function updateStreamStats(_streamId?: number): void {
   const node = document.getElementById('mirror-stats');
   if (!node || streams.size === 0) return;
@@ -736,6 +768,8 @@ async function boot(): Promise<void> {
     el('btn-max').title = maximized ? 'คืนขนาด' : 'ขยาย';
   });
 
+  api.onUpdateChanged((state) => renderUpdateCell(state));
+
   api.onMirrorHeader((header) => {
     // สตรีมเดิมมาซ้ำ (เช่นจอหมุนแล้ว server ส่งหัวใหม่) → ใช้ตัวเดิม อย่าสร้างแคนวาสใหม่
     const existing = streams.get(header.streamId);
@@ -769,6 +803,7 @@ async function boot(): Promise<void> {
     selectedSerial = (devices.find((d) => d.state === 'device') ?? devices[0])?.serial ?? null;
   }
   renderAll();
+  renderUpdateCell(await api.updateState());
   localLog('info', 'AndroidRemote พร้อมทำงาน');
 }
 

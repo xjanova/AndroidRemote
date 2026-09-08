@@ -1,0 +1,52 @@
+appId: com.xman.androidremote
+productName: AndroidRemote
+copyright: © xman
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+
+# ของที่ต้องวางข้างตัวโปรแกรม ไม่ใช่ยัดใน asar — เพราะเราส่งไฟล์เหล่านี้เข้ามือถือ
+# และสั่งรันเป็นโพรเซสแยก ซึ่งทำกับไฟล์ใน asar ไม่ได้
+extraResources:
+  - from: resources/androidremote-server.jar
+    to: androidremote-server.jar
+  - from: resources/inputhelper.exe
+    to: inputhelper.exe
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+
+  # 🔑 ห้ามตั้งเป็น false — โน้ต 2026-08-23 masternode:
+  #    allowToChangeInstallationDirectory: false ทำให้ $isTryToKeepShortcuts เป็น "true" เสมอ
+  #    แล้วติดกับดัก keepShortcuts ทุกรอบอัปเดต จนไอคอนเดสก์ท็อปหายถาวร
+  allowToChangeInstallationDirectory: true
+
+  # 🔑 "always" ไม่ใช่ true — true แปลว่า "สร้างตอนติดตั้งครั้งแรกเท่านั้น"
+  #    (นี่คือชั้นที่ 1 ชั้นที่ 2 อยู่ในโค้ดแอป ดู src/main/update/AutoUpdate.ts
+  #     เพราะสาขานี้ยังมี ${ifNot} ${isUpdated} คร่อม = สายอัปเดตอัตโนมัติไม่สร้างให้)
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+
+  shortcutName: AndroidRemote
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+
+publish:
+  provider: github
+  owner: xjanova
+  repo: AndroidRemote

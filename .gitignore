@@ -6,11 +6,20 @@ release/
 # ผลลัพธ์การ build ฝั่ง Android — สร้างใหม่ได้ด้วย npm run server:build
 server/build/
 server/.gradle/
+app/build/
 resources/androidremote-server.jar
 resources/androidremote-server.dex
 
 # ตัวฉีดคีย์ที่คอมไพล์แล้ว — สร้างใหม่ได้ด้วย npm run helper:build
 resources/inputhelper.exe
+
+# กุญแจเซ็นแอป — ห้ามเข้า repo เด็ดขาด repo นี้เป็นสาธารณะ
+# กุญแจที่ปล่อยจริงอยู่ใน GitHub Secrets เท่านั้น
+build/dev.keystore
+*.keystore
+*.jks
+*.p12
+*.pfx
 
 # แคนวาสที่ seed แล้ว — สร้างใหม่ได้จากไฟล์ .dc.html เสมอ
 design/androidremote-xp-silver.html

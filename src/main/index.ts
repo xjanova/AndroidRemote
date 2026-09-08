@@ -11,6 +11,7 @@ import { KnownDevices } from './store/KnownDevices';
 import { ServerSession, listCameras } from './server/ServerSession';
 import { GamepadServer } from './gamepad/GamepadServer';
 import { KeyInjector } from './gamepad/KeyInjector';
+import { AutoUpdate } from './update/AutoUpdate';
 import {
   SCREEN_POWER,
   encodeKeycode,
@@ -30,6 +31,7 @@ let discovery: Discovery;
 let session: ServerSession | null = null;
 let gamepad: GamepadServer;
 let injector: KeyInjector;
+let updater: AutoUpdate;
 let keymap: Record<string, number> = { ...DEFAULT_KEYMAP };
 
 /** ส่ง log ไปโชว์ในแอปด้วย ไม่ใช่แค่ค้างอยู่ใน terminal ที่ผู้ใช้ไม่เห็น */
@@ -189,6 +191,13 @@ function registerIpc(): void {
   ipcMain.handle(IPC.setAutoConnect, (_e, serial: string, on: boolean) => {
     known.setAutoConnect(serial, on);
   });
+
+  // ─────────────────────────── อัปเดตตัวแอป ───────────────────────────
+
+  ipcMain.handle(IPC.updateState, () => updater.current());
+  ipcMain.handle(IPC.updateCheck, () => updater.check());
+  ipcMain.handle(IPC.updateDownload, () => updater.download());
+  ipcMain.on(IPC.updateInstall, () => updater.installNow());
 
   // ─────────────────────────── โหมดจอยเกม ───────────────────────────
 
@@ -421,6 +430,13 @@ if (!gotLock) {
       mainWindow?.webContents.send(IPC.evtDiscoveryChanged, state);
     });
 
+    updater = new AutoUpdate(
+      (level, message) => pushLog(level, 'อัปเดต', message),
+      (state) => mainWindow?.webContents.send(IPC.evtUpdateChanged, state),
+    );
+    // ต้องเรียกทุกครั้งที่เปิด ไม่ใช่แค่ตอนติดตั้ง — สายอัปเดตอัตโนมัติไม่สร้างไอคอนให้
+    AutoUpdate.repairDesktopShortcut((level, message) => pushLog(level, 'อัปเดต', message));
+
     loadKeymap();
     injector = new KeyInjector((level, message) => pushLog(level, 'จอย', message));
     gamepad = new GamepadServer((level, message) => pushLog(level, 'จอย', message));
@@ -444,6 +460,9 @@ if (!gotLock) {
     }
 
     await registry.start();
+
+    // เช็คอัปเดตหลังแอปนิ่งแล้ว อย่าไปแย่งแบนด์วิดท์กับการต่อเครื่องตอนเปิด
+    setTimeout(() => void updater.check(), 8000);
 
     if (status.ok) {
       await discovery.start();

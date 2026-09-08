@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  แอปคู่หูบนมือถือ
+
+  หน้าที่เดียวที่แอปนี้มี และเป็นเหตุผลเดียวที่มันควรมีอยู่:
+  ทำให้การต่อไร้สาย **รอดการรีบูต** โดยผู้ใช้ไม่ต้องเสียบสาย USB ใหม่ทุกครั้ง
+
+  ตัวมิเรอร์/กล้อง/อินพุตทั้งหมดยังทำงานผ่าน server ที่ยิงเข้าไปด้วย app_process เหมือนเดิม
+  แอปนี้ไม่ได้มาแทนที่ และไม่ต้องลงก็ใช้งานหลักได้ครบ
+-->
+<!--
+  ⚠ ห้ามใส่ android:versionCode กับ android:versionName ตรงนี้
+    ธงบรรทัดคำสั่งของ aapt2 เติมค่าให้เฉพาะเมื่อ manifest ไม่ได้ระบุไว้
+    ถ้าเขียนไว้ที่นี่ ค่าในไฟล์จะชนะเสมอ versionCode จะค้างที่เดิมทุกรุ่น
+    แล้วแอนดรอยด์จะปฏิเสธการติดตั้งทับ อัปเดตไม่มีวันสำเร็จ (เจอมาแล้วตอนทดสอบ)
+    แหล่งความจริงคือ tag ที่ปล่อย ซึ่ง scripts/build-apk.mjs อ่านมาใส่ให้
+
+    หมายเหตุ: คอมเมนต์ XML ห้ามมีขีดสองตัวติดกันข้างใน เขียนชื่อธงเต็มไม่ได้
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.androidremote.companion">
+
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- ต้องมีเพื่อรู้ว่าเครื่องเพิ่งบูตเสร็จ แล้วเปิดพอร์ตไร้สายคืนให้ -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- กันไม่ให้ Wi-Fi หลับตอนจอดับ ไม่งั้น PC จะหาเครื่องไม่เจอ -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:label="AndroidRemote"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.DayNight">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="AndroidRemote">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="คงการต่อไร้สายกับ PC ไว้ขณะจอดับ" />
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -17,7 +17,9 @@
     "smoke:adb": "tsx scripts/smoke-adb.ts",
     "smoke:discovery": "tsx scripts/smoke-discovery.ts",
     "smoke:gamepad": "tsx scripts/smoke-gamepad.ts",
-    "dist": "npm run build && electron-builder --win --x64"
+    "dist": "npm run build && electron-builder --win --x64",
+    "apk:build": "node scripts/build-apk.mjs",
+    "apk:keygen": "node scripts/make-release-key.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -27,5 +29,8 @@
     "tsx": "^4.23.13",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

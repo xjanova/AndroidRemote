@@ -21,6 +21,16 @@ export interface WirelessResult {
   message: string;
 }
 
+export interface UpdateStateView {
+  stage: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'none' | 'error';
+  currentVersion: string;
+  newVersion?: string;
+  percent?: number;
+  message?: string;
+  /** ระหว่างพัฒนาไม่มีตัวติดตั้ง จึงเช็คอัปเดตไม่ได้ */
+  supported: boolean;
+}
+
 export interface MirrorOptions {
   maxSize?: number;
   bitRate?: number;
@@ -117,6 +127,12 @@ export interface AndroidRemoteApi {
   sendKey(action: number, keycode: number): void;
   sendScreenPower(on: boolean): void;
 
+  /** ─── อัปเดตตัวแอป ─── */
+  updateState(): Promise<UpdateStateView>;
+  updateCheck(): Promise<UpdateStateView>;
+  updateDownload(): Promise<void>;
+  updateInstall(): void;
+
   /** ─── โหมดจอยเกม ─── */
   gamepadState(): Promise<GamepadStateView>;
   gamepadStart(): Promise<GamepadStateView>;
@@ -137,6 +153,7 @@ export interface AndroidRemoteApi {
   onWindowStateChanged(cb: (state: { maximized: boolean }) => void): () => void;
   onDiscoveryChanged(cb: (state: DiscoveryState) => void): () => void;
   onGamepadChanged(cb: (state: GamepadStateView) => void): () => void;
+  onUpdateChanged(cb: (state: UpdateStateView) => void): () => void;
   onMirrorHeader(cb: (header: MirrorHeader) => void): () => void;
   onMirrorPacket(cb: (packet: MirrorPacket) => void): () => void;
   onMirrorClosed(cb: (reason: string) => void): () => void;
@@ -168,6 +185,11 @@ export const IPC = {
   forgetDevice: 'known:forget',
   setAutoConnect: 'known:auto-connect',
 
+  updateState: 'update:state',
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+
   gamepadState: 'gamepad:state',
   gamepadStart: 'gamepad:start',
   gamepadStop: 'gamepad:stop',
@@ -192,6 +214,7 @@ export const IPC = {
   evtWindowState: 'evt:window-state',
   evtDiscoveryChanged: 'evt:discovery-changed',
   evtGamepadChanged: 'evt:gamepad-changed',
+  evtUpdateChanged: 'evt:update-changed',
   evtMirrorHeader: 'evt:mirror-header',
   evtMirrorPacket: 'evt:mirror-packet',
   evtMirrorClosed: 'evt:mirror-closed',
