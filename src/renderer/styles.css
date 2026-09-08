@@ -1,0 +1,627 @@
+/* ============================================================================
+   ธีม XP Luna Silver — โลหะ 3 มิติ
+   สูตรโลหะ: ไล่เฉดหลายสต็อป · แถบสว่างเด้งที่ 8% · จบด้วยเส้นเข้มคมที่ก้น
+             บีเวลสองชั้น #fff / #0a0a0a
+   🔑 แผงที่สูงเกิน 30px ต้องตรึงความสูงแสงสะท้อนด้วย background-size
+      ไม่งั้นไล่เฉดจะยืดจนจืด ไม่เหลือความเป็นโลหะ (XP อยู่บนโครงเตี้ยเสมอ)
+   ============================================================================ */
+
+:root {
+  --face: #e7e8f1;
+  --face-hi: #f6f6fb;
+  --edge: #8e8fa2;
+  --edge-soft: #b7b8c8;
+  --frame: #55566a;
+  --ink: #1c1c22;
+  --ink-dim: #6a6b7a;
+  --ink-label: #3d4a63;
+
+  --sel-1: #6a9ad4;
+  --sel-2: #3a6ea5;
+  --sel-3: #2c5988;
+
+  --amber-hi: #fdd889;
+  --amber: #e5a01a;
+  --amber-lo: #c8850c;
+
+  --ok: #3f9c4a;
+  --warn: #d4a017;
+  --bad: #b23524;
+
+  --stage: #171a21;
+
+  --font: Tahoma, "Segoe UI", sans-serif;
+  --font-title: "Trebuchet MS", Tahoma, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--ink);
+  background: #333d54;
+  user-select: none;
+  cursor: default;
+}
+
+a { color: #1d5fa8; text-decoration: none; }
+a:hover { color: var(--amber-lo); text-decoration: underline; }
+
+/* ── พื้นผิวโลหะ ───────────────────────────────────────────────────────── */
+
+/* ลายบรัช: ต้องรู้สึกได้แต่ห้ามอ่านออกเป็นเส้น — ที่ 1 เท่าบนจอจริง
+   ค่า .34/1px-3px ที่ใช้ตอนร่างบนอาร์ตบอร์ดเล็ก กลายเป็นทางม้าลายบนหน้าต่างจริง */
+.metal {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.15) 0 1px, rgba(72,72,92,.028) 1px 4px),
+    linear-gradient(180deg, #fdfdff 0%, #f2f3f9 8%, #dfe0eb 44%, #c9cad9 76%, #b4b5c6 94%, #8e8fa2 100%);
+  background-repeat: repeat, no-repeat;
+}
+
+.metal-tall {
+  background-color: var(--face);
+  background-image:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.15) 0 1px, rgba(72,72,92,.026) 1px 4px),
+    linear-gradient(180deg, #fdfdff 0%, var(--face-hi) 8%, #ebecf4 62%, var(--face) 100%);
+  background-repeat: repeat, no-repeat;
+  background-size: 100% 100%, 100% 30px; /* 🔑 ตรึงแสงสะท้อน */
+}
+
+.sunken {
+  border: 1px solid #83849a;
+  border-top-color: #5f6070;
+  border-left-color: #5f6070;
+  box-shadow: inset 1px 1px 2px rgba(20,20,35,.3), 0 1px 0 rgba(255,255,255,.8);
+}
+
+/* ── โครงหน้าต่าง ─────────────────────────────────────────────────────── */
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--frame);
+  overflow: hidden;
+}
+
+.titlebar {
+  flex: 0 0 25px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 3px 0 7px;
+  box-shadow: inset 1px 1px 0 #fff, inset 0 -1px 0 #6f7080;
+  -webkit-app-region: drag; /* ลากหน้าต่างได้ทั้งแถบ */
+}
+.titlebar__text {
+  flex: 1;
+  font: bold 11px var(--font-title);
+  color: #21222c;
+  text-shadow: 0 1px 0 rgba(255,255,255,.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.titlebar__buttons { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+
+.capbtn {
+  width: 21px;
+  height: 19px;
+  border: 1px solid #7f8090;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.3) 49%, rgba(255,255,255,0) 50%),
+    linear-gradient(180deg, #eff0f6 0%, #d3d4e1 51%, #b9bac9 100%);
+  box-shadow: inset 0 1px 0 #fff;
+}
+.capbtn:hover { border-color: #b98812; background-image: linear-gradient(180deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.3) 49%, rgba(255,255,255,0) 50%), linear-gradient(180deg, #fde3a8 0%, #f4bb33 51%, #e5a01a 100%); }
+.capbtn:active { box-shadow: inset 1px 1px 3px rgba(10,10,10,.45); }
+.capbtn--close {
+  border-color: #8d3a2f;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.28) 49%, rgba(255,255,255,0) 50%),
+    linear-gradient(180deg, #f08b74 0%, #d9503a 51%, #b23524 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 1px 1px rgba(0,0,0,.2);
+}
+.capbtn--close:hover { background-image: linear-gradient(180deg, rgba(255,255,255,.9) 0%, rgba(255,255,255,.32) 49%, rgba(255,255,255,0) 50%), linear-gradient(180deg, #f7a48f 0%, #e35c44 51%, #c43c29 100%); }
+
+.menubar {
+  flex: 0 0 21px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 4px;
+  background: #eceef5;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(140,140,162,.5);
+}
+.menubar__item { padding: 3px 8px; border-radius: 2px; color: #23242e; }
+.menubar__item:hover {
+  background-image: linear-gradient(180deg, var(--sel-1) 0%, var(--sel-2) 55%, var(--sel-3) 100%);
+  color: #fff;
+}
+
+.toolbar {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(130,130,152,.65);
+}
+
+.tbtn {
+  height: 26px;
+  min-width: 26px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #22232c;
+  white-space: nowrap;
+}
+.tbtn:hover:not(.is-disabled) { border-color: #c39418; background-image: linear-gradient(180deg, #fffdf4 0%, #fde3a8 30%, #f7cd66 100%); }
+.tbtn:active:not(.is-disabled) { box-shadow: inset 1px 1px 3px rgba(10,10,10,.4); }
+.tbtn.is-on {
+  border-color: #a97c10;
+  color: #3d2c04;
+  background-image: linear-gradient(180deg, #d9ab3a 0%, #f0c765 18%, #f7d98d 100%);
+  box-shadow: inset 1px 1px 2px rgba(96,60,0,.5), inset -1px -1px 0 rgba(255,255,255,.5);
+}
+.tbtn.is-disabled { opacity: .4; cursor: default; }
+
+.tsep {
+  width: 1px;
+  align-self: stretch;
+  margin: 5px 4px;
+  background: linear-gradient(180deg, rgba(90,90,110,.05), rgba(90,90,110,.45), rgba(90,90,110,.05));
+  box-shadow: 1px 0 0 rgba(255,255,255,.85);
+}
+
+.body { flex: 1; display: flex; min-height: 0; background: var(--face); }
+
+.panel-left {
+  flex: 0 0 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 14px 10px 10px;
+  overflow-y: auto;
+  box-shadow: inset -1px 0 0 rgba(130,130,152,.6), inset -2px 0 0 rgba(255,255,255,.75);
+}
+.panel-right {
+  flex: 0 0 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 14px 10px 10px;
+  overflow-y: auto;
+  box-shadow: inset 1px 0 0 rgba(255,255,255,.8), inset 2px 0 0 rgba(130,130,152,.35);
+}
+
+.stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px;
+  background-image: radial-gradient(90% 70% at 50% 22%, #3a4050 0%, #262a34 55%, #1b1e26 100%);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,.55), inset -1px -1px 0 rgba(255,255,255,.1);
+}
+.stage__title { font: 12px var(--font); color: #8b95a8; }
+.stage__hint { font: 11px var(--font); color: #6c7688; text-align: center; line-height: 1.7; max-width: 340px; }
+
+/* ── กล่องกลุ่มแบบ XP ─────────────────────────────────────────────────── */
+
+.gbox {
+  position: relative;
+  border: 1px solid var(--edge-soft);
+  border-top-color: #a0a1b2;
+  border-radius: 3px;
+  background: rgba(255,255,255,.45);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(255,255,255,.7);
+  padding: 14px 9px 10px;
+}
+.gbox__title {
+  position: absolute;
+  top: -7px;
+  left: 9px;
+  padding: 0 5px;
+  font: bold 11px var(--font);
+  color: var(--ink-label);
+  background: var(--face); /* ต้องตรงกับพื้นของแผงแม่เป๊ะๆ ไม่งั้นเห็นเป็นแผ่นทะลุ */
+}
+
+/* ── ปุ่ม ─────────────────────────────────────────────────────────────── */
+
+.xpbtn {
+  height: 23px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #71727f;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--ink);
+  white-space: nowrap;
+  background-image: linear-gradient(180deg, #ffffff 0%, #f8f8fc 8%, #e9eaf3 46%, #d5d6e3 80%, #c2c3d3 100%);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.32), 0 1px 1px rgba(0,0,0,.1);
+}
+.xpbtn:hover:not(:disabled) { border-color: #b98812; background-image: linear-gradient(180deg, #fffdf4 0%, var(--amber-hi) 24%, #f4bb33 62%, var(--amber) 100%); }
+.xpbtn:active:not(:disabled) { background-image: linear-gradient(180deg, #b9bac9 0%, #d3d4e1 38%, #e6e7f0 100%); box-shadow: inset 1px 1px 2px rgba(10,10,10,.42); }
+.xpbtn:disabled { opacity: .45; cursor: default; }
+
+/* ปุ่มเจล — รอยมันวาวตัดคมที่ 50% ขอบบนสว่าง ขอบล่างจม */
+.gel {
+  height: 27px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #a97708;
+  border-radius: 14px;
+  cursor: pointer;
+  font: bold 11px var(--font);
+  color: #3d2c04;
+  white-space: nowrap;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.42) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%),
+    linear-gradient(180deg, #fde08f 0%, #f6bc3c 50%, var(--amber) 51%, var(--amber-lo) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(120,72,0,.42), 0 1px 2px rgba(0,0,0,.28);
+}
+.gel:hover:not(:disabled) { background-image: linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.5) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%), linear-gradient(180deg, #ffeaa8 0%, #f9c94e 50%, #eda812 51%, #d08d0d 100%); }
+.gel:active:not(:disabled) { box-shadow: inset 0 2px 4px rgba(120,72,0,.55); }
+.gel:disabled {
+  border-color: #9fa0b0;
+  color: #7c7d8c;
+  cursor: default;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,.3) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%),
+    linear-gradient(180deg, #e6e7f0 0%, #d5d6e3 50%, #c6c7d6 51%, #b3b4c4 100%);
+}
+
+/* ── รายการเครื่อง ───────────────────────────────────────────────────── */
+
+.devlist {
+  background: #fff;
+  border-radius: 2px;
+  padding: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 46px;
+}
+.devlist__empty {
+  padding: 13px 8px;
+  text-align: center;
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.row:hover { background: rgba(58,110,165,.13); }
+.row.is-selected {
+  background-image: linear-gradient(180deg, var(--sel-1) 0%, var(--sel-2) 55%, var(--sel-3) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+}
+.row.is-selected .row__name { color: #fff; }
+.row.is-selected .row__sub { color: #d3e3f5; }
+.row__icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #a9aabb;
+  background-image: linear-gradient(180deg, #f7f8fc 0%, #dcdde8 100%);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(0,0,0,.15);
+}
+.row__text { flex: 1; min-width: 0; }
+.row__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row__sub { font-size: 10px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
+
+/* ── ป้ายระดับสิทธิ์ ─────────────────────────────────────────────────── */
+
+.tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  font: bold 11px var(--font);
+  border: 1px solid;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+}
+.tier--root  { color: #5e2d86; background-image: linear-gradient(180deg, #f2e8fa 0%, #e2d0f4 100%); border-color: #a888c9; }
+.tier--shizuku { color: #1f5b6b; background-image: linear-gradient(180deg, #e4f4f8 0%, #cbe9f0 100%); border-color: #8bbdc9; }
+.tier--shell { color: #1f6b2c; background-image: linear-gradient(180deg, #e8f6ea 0%, #d5edd9 100%); border-color: #8dc196; }
+.tier--none  { color: #6a6b7a; background-image: linear-gradient(180deg, #f0f0f4 0%, #e0e0e8 100%); border-color: #b0b1c0; }
+
+/* ── ตารางความสามารถ ─────────────────────────────────────────────────── */
+
+.caps { display: flex; flex-direction: column; gap: 2px; }
+.cap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 4px;
+  border-radius: 2px;
+}
+.cap:hover { background: rgba(58,110,165,.1); }
+.cap__mark { width: 13px; height: 13px; flex: 0 0 13px; display: flex; align-items: center; justify-content: center; }
+.cap__label { flex: 1; }
+.cap.is-off .cap__label { color: #9a9baa; }
+.cap__need {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 7px;
+  border: 1px solid #c9a53e;
+  background: #fdf4dc;
+  color: #8a6508;
+}
+
+/* ── การ์ดเตือน / ขั้นตอนแก้ ─────────────────────────────────────────── */
+
+.blocker {
+  border: 1px solid #c9a53e;
+  border-radius: 3px;
+  background-image: linear-gradient(180deg, #fffaea 0%, #fdf0c8 100%);
+  box-shadow: inset 0 1px 0 #fff;
+  padding: 9px 10px;
+}
+.blocker--fatal { border-color: #cf8477; background-image: linear-gradient(180deg, #fdf1ee 0%, #f9ded8 100%); }
+.blocker__head { display: flex; gap: 7px; align-items: flex-start; }
+.blocker__title { font-weight: bold; color: #5c4708; line-height: 1.4; }
+.blocker--fatal .blocker__title { color: #7a2f21; }
+.blocker__detail { color: #6b5410; line-height: 1.5; margin-top: 3px; }
+.blocker--fatal .blocker__detail { color: #8a4436; }
+.blocker__steps { margin: 8px 0 0; padding-left: 20px; line-height: 1.75; color: #5c4708; }
+.blocker--fatal .blocker__steps { color: #7a2f21; }
+.blocker__steps li { margin-bottom: 2px; }
+
+/* ── แถบสถานะ ─────────────────────────────────────────────────────────── */
+
+.statusbar {
+  flex: 0 0 23px;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  color: #33343f;
+  box-shadow: inset 0 1px 0 #fff, inset 0 2px 0 rgba(130,130,152,.28);
+}
+.statusbar__main { display: flex; align-items: center; gap: 6px; padding-right: 10px; }
+.cell {
+  padding: 0 8px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-left: 1px solid rgba(255,255,255,.85);
+  box-shadow: -1px 0 0 rgba(120,120,142,.5);
+  white-space: nowrap;
+}
+
+/* ── ปุ่มควบคุมใต้ภาพมิเรอร์ ─────────────────────────────────────────── */
+
+.navb {
+  min-width: 46px;
+  height: 24px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #6f7080;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--ink);
+  background-image: linear-gradient(180deg, #ffffff 0%, #f8f8fc 8%, #e9eaf3 46%, #d5d6e3 80%, #c2c3d3 100%);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.3);
+}
+.navb:hover { border-color: #b98812; background-image: linear-gradient(180deg, #fffdf4 0%, var(--amber-hi) 24%, #f4bb33 62%, var(--amber) 100%); }
+.navb:active { background-image: linear-gradient(180deg, #b9bac9 0%, #d3d4e1 38%, #e6e7f0 100%); box-shadow: inset 1px 1px 2px rgba(10,10,10,.42); }
+
+/* ── บันทึกเหตุการณ์ ─────────────────────────────────────────────────── */
+
+.logbox {
+  background: #fff;
+  border-radius: 2px;
+  padding: 5px 6px;
+  height: 116px;
+  overflow-y: auto;
+  font: 10px Consolas, "Courier New", monospace;
+  line-height: 1.6;
+  user-select: text;
+  cursor: text;
+}
+.logline { white-space: pre-wrap; word-break: break-word; }
+.logline--warn { color: #8a6508; }
+.logline--error { color: #a5301f; }
+.logline__time { color: #9a9baa; }
+
+/* ── รายละเอียดเครื่อง ───────────────────────────────────────────────── */
+
+.kv { display: flex; flex-direction: column; gap: 5px; }
+.kv__row { display: flex; justify-content: space-between; gap: 10px; }
+.kv__k { color: var(--ink-dim); flex: 0 0 auto; }
+.kv__v { text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── หน้าต่างซ้อน ─────────────────────────────────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 24, 34, .45);
+}
+
+.modal {
+  width: 560px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--frame);
+  border-radius: 8px 8px 4px 4px;
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.16);
+}
+.modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 13px;
+}
+
+/* ── รายการที่ค้นเจอ ─────────────────────────────────────────────────── */
+
+.found {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: #fff;
+  border-radius: 2px;
+  padding: 2px;
+  min-height: 54px;
+}
+.found__empty { padding: 16px 8px; text-align: center; color: var(--ink-dim); line-height: 1.6; }
+
+.found__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border-radius: 2px;
+}
+.found__row:hover { background: rgba(58,110,165,.1); }
+.found__row + .found__row { border-top: 1px solid #eceef5; }
+.found__text { flex: 1; min-width: 0; }
+.found__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.found__sub { font-size: 10px; color: var(--ink-dim); margin-top: 1px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 15px;
+  border-radius: 8px;
+  font-size: 10px;
+  border: 1px solid;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  white-space: nowrap;
+}
+.chip--pairing { color: #8a6508; background: #fdf4dc; border-color: #d8b355; }
+.chip--ready   { color: #1f6b2c; background: #e4f4e6; border-color: #8dc196; }
+.chip--legacy  { color: #33506f; background: #e3edf8; border-color: #a8bcd6; }
+.chip--known   { color: #5e2d86; background: #f2e8fa; border-color: #a888c9; }
+.chip--source  { color: #6a6b7a; background: #f0f0f4; border-color: #c2c3d3; }
+
+.code-input {
+  width: 96px;
+  height: 21px;
+  padding: 0 6px;
+  border: 1px solid #83849a;
+  border-top-color: #5f6070;
+  border-left-color: #5f6070;
+  background: #fff;
+  box-shadow: inset 1px 1px 2px rgba(20,20,35,.24);
+  font: bold 13px var(--font-title);
+  letter-spacing: 2px;
+  text-align: center;
+  color: #1c3d63;
+  user-select: text;
+}
+.text-input {
+  height: 21px;
+  padding: 0 6px;
+  border: 1px solid #83849a;
+  border-top-color: #5f6070;
+  border-left-color: #5f6070;
+  background: #fff;
+  box-shadow: inset 1px 1px 2px rgba(20,20,35,.24);
+  font: 11px var(--font);
+  color: var(--ink);
+  user-select: text;
+}
+
+/* แถบความคืบหน้าแบบ XP — บล็อกไล่เรียง ไม่ใช่แถบทึบ */
+.progress {
+  height: 15px;
+  border-radius: 2px;
+  background: #fff;
+  padding: 2px;
+  overflow: hidden;
+}
+.progress__fill {
+  height: 100%;
+  border-radius: 1px;
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 8px, rgba(255,255,255,.55) 8px 10px),
+    linear-gradient(180deg, #8fd0a0 0%, #4f9c63 50%, #3d8250 51%, #2f6b40 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  transition: width .12s linear;
+}
+
+.switch { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.switch__box {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  border: 1px solid #83849a;
+  border-top-color: #5f6070;
+  border-left-color: #5f6070;
+  background: #fff;
+  box-shadow: inset 1px 1px 2px rgba(20,20,35,.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.switch:hover .switch__box { border-color: #b98812; }
+
+/* ── แถบเลื่อนแบบ XP ─────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 15px; height: 15px; }
+::-webkit-scrollbar-track { background: #eceef5; box-shadow: inset 1px 0 0 rgba(140,140,162,.4); }
+::-webkit-scrollbar-thumb {
+  border: 1px solid #8e8fa2;
+  border-radius: 2px;
+  background-image: linear-gradient(90deg, #ffffff 0%, #f0f1f7 12%, #dcdde8 60%, #c5c6d5 100%);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.25);
+}
+.logbox::-webkit-scrollbar { width: 12px; }

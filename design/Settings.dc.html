@@ -1,0 +1,457 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: Tahoma, "Segoe UI", sans-serif; font-size: 11px; color: #1c1c22; }
+    a { color: #1d5fa8; text-decoration: none; }
+    a:hover { color: #c8850c; text-decoration: underline; }
+
+    .metal {
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.34) 0 1px, rgba(78,78,98,.055) 1px 3px),
+        linear-gradient(180deg, #fdfdff 0%, #f2f3f9 8%, #dfe0eb 44%, #c9cad9 76%, #b4b5c6 94%, #8e8fa2 100%);
+      background-repeat: repeat, no-repeat;
+    }
+    .metal-tall {
+      background-color: #e7e8f1;
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.36) 0 1px, rgba(78,78,98,.05) 1px 3px),
+        linear-gradient(180deg, #fdfdff 0%, #f6f6fb 8%, #ebecf4 62%, #e7e8f1 100%);
+      background-repeat: repeat, no-repeat;
+      background-size: 100% 100%, 100% 30px;
+    }
+
+    .xpbtn {
+      height: 23px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      border: 1px solid #71727f; border-radius: 3px; cursor: pointer; user-select: none;
+      font: 11px Tahoma, sans-serif; color: #1c1c22; white-space: nowrap;
+      background-image: linear-gradient(180deg, #ffffff 0%, #f8f8fc 8%, #e9eaf3 46%, #d5d6e3 80%, #c2c3d3 100%);
+      box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.32), 0 1px 1px rgba(0,0,0,.1);
+    }
+    .xpbtn:hover { border-color: #b98812; background-image: linear-gradient(180deg, #fffdf4 0%, #fdd889 24%, #f4bb33 62%, #e5a01a 100%); }
+    .xpbtn:active { background-image: linear-gradient(180deg, #b9bac9 0%, #d3d4e1 38%, #e6e7f0 100%); box-shadow: inset 1px 1px 2px rgba(10,10,10,.42); }
+
+    .gel {
+      height: 27px; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: 1px solid #a97708; border-radius: 14px; cursor: pointer; user-select: none;
+      font: bold 11px Tahoma, sans-serif; color: #3d2c04; white-space: nowrap;
+      background-image:
+        linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.42) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%),
+        linear-gradient(180deg, #fde08f 0%, #f6bc3c 50%, #e5a01a 51%, #c8850c 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(120,72,0,.42), 0 1px 2px rgba(0,0,0,.28);
+    }
+    .gel:hover { background-image: linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.5) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%), linear-gradient(180deg, #ffeaa8 0%, #f9c94e 50%, #eda812 51%, #d08d0d 100%); }
+    .gel:active { box-shadow: inset 0 2px 4px rgba(120,72,0,.55); }
+
+    .tab {
+      height: 22px; padding: 0 13px; display: inline-flex; align-items: center; position: relative; top: 2px;
+      border: 1px solid #9a9bad; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; user-select: none;
+      font: 11px Tahoma, sans-serif; color: #45465a;
+      background-image: linear-gradient(180deg, #f2f3f9 0%, #e4e5ee 50%, #d2d3e0 100%);
+      box-shadow: inset 1px 1px 0 rgba(255,255,255,.9);
+    }
+    .tab:hover { background-image: linear-gradient(180deg, #fffdf4 0%, #fde3a8 55%, #f7cd66 100%); border-color: #bd8a17; }
+    .tab.act {
+      top: 0; height: 24px; z-index: 3; color: #1c1c22; font-weight: bold; border-color: #8e8fa2;
+      background-image: linear-gradient(180deg, #ffffff 0%, #fbfbfe 8%, #f3f4f9 62%, #eceef5 100%);
+      box-shadow: inset 1px 1px 0 #fff, 0 -1px 2px rgba(0,0,0,.08);
+    }
+
+    .gbox { position: relative; border: 1px solid #b7b8c8; border-top-color: #a0a1b2; border-radius: 3px; background: rgba(255,255,255,.45); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(255,255,255,.7); }
+    .gbox-t { position: absolute; top: -7px; left: 9px; padding: 0 5px; font: bold 11px Tahoma, sans-serif; color: #3d4a63; background: #eceef5; }
+
+    .chk { width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid #83849a; border-top-color: #5f6070; border-left-color: #5f6070; background: #fff; box-shadow: inset 1px 1px 2px rgba(20,20,35,.26); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .chkrow { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 0; }
+    .chkrow:hover .chk { border-color: #b98812; }
+
+    .combo { height: 21px; display: flex; align-items: center; border: 1px solid #83849a; border-top-color: #5f6070; border-left-color: #5f6070; background: #fff; box-shadow: inset 1px 1px 2px rgba(20,20,35,.24); cursor: pointer; }
+    .combo-v { flex: 1; padding: 0 6px; font: 11px Tahoma, sans-serif; color: #1c1c22; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .combo-b { width: 17px; height: 17px; margin: 1px; flex: 0 0 17px; display: flex; align-items: center; justify-content: center; border: 1px solid #71727f; border-radius: 2px;
+      background-image: linear-gradient(180deg, #ffffff 0%, #f8f8fc 8%, #e9eaf3 46%, #d5d6e3 80%, #c2c3d3 100%);
+      box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.3); }
+    .combo:hover .combo-b { border-color: #b98812; background-image: linear-gradient(180deg, #fffdf4 0%, #fdd889 24%, #f4bb33 62%, #e5a01a 100%); }
+
+    /* แทร็กบาร์ XP */
+    .trk { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: transparent; cursor: pointer; margin: 0; }
+    .trk::-webkit-slider-runnable-track { height: 5px; border-radius: 2px; border: 1px solid #83849a; border-top-color: #5f6070; background-image: linear-gradient(180deg, #b9bac9 0%, #dcdde8 60%, #edeef5 100%); box-shadow: inset 1px 1px 2px rgba(20,20,35,.3); }
+    .trk::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 18px; margin-top: -6.5px; border: 1px solid #6f7080; border-radius: 3px;
+      background-image: linear-gradient(180deg, #ffffff 0%, #f8f8fc 8%, #e9eaf3 46%, #d5d6e3 80%, #c2c3d3 100%);
+      box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.3), 0 1px 2px rgba(0,0,0,.3); }
+    .trk::-moz-range-track { height: 5px; border-radius: 2px; border: 1px solid #83849a; background-image: linear-gradient(180deg, #b9bac9 0%, #dcdde8 60%, #edeef5 100%); }
+    .trk::-moz-range-thumb { width: 12px; height: 18px; border: 1px solid #6f7080; border-radius: 3px; background-image: linear-gradient(180deg, #ffffff 0%, #e9eaf3 46%, #c2c3d3 100%); }
+
+    /* ขีดบอกค่าต้องตรงกับตำแหน่งจริงของหัวเลื่อน ไม่ใช่แบ่งเท่าๆ กัน */
+    .ticks { position: relative; height: 13px; margin: 0 6px; }
+    .ticks span { position: absolute; top: 0; transform: translateX(-50%); font: 10px Tahoma, sans-serif; color: #7a7b8c; white-space: nowrap; }
+    .ticks-flow { display: flex; justify-content: space-between; padding: 0 6px; font: 10px Tahoma, sans-serif; color: #7a7b8c; }
+    .lbl { width: 118px; flex: 0 0 118px; font: 11px Tahoma, sans-serif; color: #2c2d38; }
+    .frow { display: flex; align-items: center; gap: 9px; }
+    .dim { opacity: .4; pointer-events: none; }
+    .sunken { border: 1px solid #83849a; border-top-color: #5f6070; border-left-color: #5f6070; box-shadow: inset 1px 1px 2px rgba(20,20,35,.3), 0 1px 0 rgba(255,255,255,.8); }
+  </style>
+</helmet>
+
+<div style="width: 560px; height: 560px; display: flex; align-items: center; justify-content: center; background-image: radial-gradient(120% 90% at 30% 0%, #64748f 0%, #4b5772 45%, #333d54 100%);">
+
+  <div style="width: 524px; height: 524px; display: flex; flex-direction: column; border: 1px solid #55566a; border-radius: 8px 8px 4px 4px; overflow: hidden; box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.16) inset;">
+
+    <div class="metal" style="flex: 0 0 25px; display: flex; align-items: center; gap: 6px; padding: 0 3px 0 7px; box-shadow: inset 1px 1px 0 #fff, inset 0 -1px 0 #6f7080;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#2f4a6d" stroke-width="1.25" stroke-linejoin="round">
+        <path d="M8 1.9l1.5 1 1.8-.4.6 1.7 1.6.9-.6 1.7.6 1.7-1.6.9-.6 1.7-1.8-.4-1.5 1-1.5-1-1.8.4-.6-1.7-1.6-.9.6-1.7-.6-1.7 1.6-.9.6-1.7 1.8.4z" fill="#dbe4f1"></path>
+        <circle cx="8" cy="8" r="2.1" fill="#fff"></circle>
+      </svg>
+      <div style="flex: 1; font: bold 11px 'Trebuchet MS', Tahoma, sans-serif; color: #21222c; text-shadow: 0 1px 0 rgba(255,255,255,.9);">ตัวเลือก</div>
+      <div style="width: 21px; height: 19px; border: 1px solid #8d3a2f; border-radius: 3px; display: flex; align-items: center; justify-content: center; background-image: linear-gradient(180deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.28) 49%, rgba(255,255,255,0) 50%), linear-gradient(180deg, #f08b74 0%, #d9503a 51%, #b23524 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.8);">
+        <svg width="9" height="9" viewBox="0 0 10 10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><line x1="1.6" y1="1.6" x2="8.4" y2="8.4"></line><line x1="8.4" y1="1.6" x2="1.6" y2="8.4"></line></svg>
+      </div>
+    </div>
+
+    <div class="metal-tall" style="flex: 1; display: flex; flex-direction: column; padding: 12px 14px 13px; min-height: 0;">
+
+      <div style="display: flex; align-items: flex-end; gap: 2px; padding-left: 3px;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+          <div class="{{t.cls}}" onClick="{{t.pick}}">{{t.n}}</div>
+        </sc-for>
+      </div>
+
+      <div style="flex: 1; min-height: 0; margin-top: -1px; border: 1px solid #8e8fa2; border-radius: 0 3px 3px 3px; background: #eceef5; padding: 17px 14px 14px; box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0,0,0,.09); overflow: hidden;">
+
+        <!-- ── วิดีโอ ── -->
+        <sc-if value="{{isVideo}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 17px;">
+
+            <div class="gbox" style="padding: 15px 12px 13px;">
+              <div class="gbox-t">ภาพ</div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="frow">
+                  <div class="lbl">ความละเอียดสูงสุด</div>
+                  <div class="combo" style="flex: 1;" onClick="{{cycleRes}}">
+                    <div class="combo-v">{{resVal}}</div>
+                    <div class="combo-b"><svg width="7" height="5" viewBox="0 0 8 5" fill="#2c2d38"><path d="M0 0h8L4 5z"></path></svg></div>
+                  </div>
+                </div>
+                <div class="frow">
+                  <div class="lbl">ตัวเข้ารหัส</div>
+                  <div class="combo" style="flex: 1;" onClick="{{cycleCodec}}">
+                    <div class="combo-v">{{codecVal}}</div>
+                    <div class="combo-b"><svg width="7" height="5" viewBox="0 0 8 5" fill="#2c2d38"><path d="M0 0h8L4 5z"></path></svg></div>
+                  </div>
+                </div>
+                <div class="frow" style="align-items: flex-start;">
+                  <div class="lbl" style="padding-top: 2px;">อัตราเฟรม</div>
+                  <div style="flex: 1;">
+                    <input class="trk" type="range" min="24" max="120" step="1" value="{{fps}}" onInput="{{setFps}}">
+                    <div class="ticks"><span style="left: 0%;">24</span><span style="left: 37.5%;">60</span><span style="left: 68.75%;">90</span><span style="left: 100%;">120</span></div>
+                  </div>
+                  <div class="sunken" style="width: 62px; height: 20px; background: #fff; border-radius: 2px; display: flex; align-items: center; justify-content: center; font: bold 11px Tahoma; color: #1c3d63;">{{fpsLabel}}</div>
+                </div>
+                <div class="frow" style="align-items: flex-start;">
+                  <div class="lbl" style="padding-top: 2px;">บิตเรต</div>
+                  <div style="flex: 1;">
+                    <input class="trk" type="range" min="2" max="24" step="1" value="{{bitrate}}" onInput="{{setBitrate}}">
+                    <div class="ticks"><span style="left: 0%;">2</span><span style="left: 27.3%;">8</span><span style="left: 63.6%;">16</span><span style="left: 100%;">24</span></div>
+                  </div>
+                  <div class="sunken" style="width: 62px; height: 20px; background: #fff; border-radius: 2px; display: flex; align-items: center; justify-content: center; font: bold 11px Tahoma; color: #1c3d63;">{{bitrateLabel}}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="gbox" style="padding: 15px 12px 13px;">
+              <div class="gbox-t">หน้าจอมือถือ</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <sc-for list="{{videoChecks}}" as="c" hint-placeholder-count="4">
+                  <div class="chkrow" onClick="{{c.toggle}}">
+                    <div class="chk">
+                      <sc-if value="{{c.on}}" hint-placeholder-val="{{true}}">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#1f6b2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.2 3.9 7.6 8.4 2.6"></path></svg>
+                      </sc-if>
+                    </div>
+                    <span style="font: 11px Tahoma;">{{c.n}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ── เสียง ── -->
+        <sc-if value="{{isAudio}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 17px;">
+
+            <div class="chkrow" onClick="{{toggleAudio}}">
+              <div class="chk">
+                <sc-if value="{{audioOn}}" hint-placeholder-val="{{true}}">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#1f6b2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.2 3.9 7.6 8.4 2.6"></path></svg>
+                </sc-if>
+              </div>
+              <span style="font: bold 11px Tahoma;">ส่งเสียงจากมือถือมาออกลำโพงเครื่องนี้</span>
+            </div>
+
+            <div class="{{audioBodyCls}}" style="display: flex; flex-direction: column; gap: 17px;">
+              <div class="gbox" style="padding: 15px 12px 13px;">
+                <div class="gbox-t">แหล่งเสียง</div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div class="frow">
+                    <div class="lbl">รับจาก</div>
+                    <div class="combo" style="flex: 1;" onClick="{{cycleSource}}">
+                      <div class="combo-v">{{sourceVal}}</div>
+                      <div class="combo-b"><svg width="7" height="5" viewBox="0 0 8 5" fill="#2c2d38"><path d="M0 0h8L4 5z"></path></svg></div>
+                    </div>
+                  </div>
+                  <div class="frow">
+                    <div class="lbl">ตัวเข้ารหัสเสียง</div>
+                    <div class="combo" style="flex: 1;" onClick="{{cycleAcodec}}">
+                      <div class="combo-v">{{acodecVal}}</div>
+                      <div class="combo-b"><svg width="7" height="5" viewBox="0 0 8 5" fill="#2c2d38"><path d="M0 0h8L4 5z"></path></svg></div>
+                    </div>
+                  </div>
+                  <div class="frow" style="align-items: flex-start;">
+                    <div class="lbl" style="padding-top: 2px;">บัฟเฟอร์</div>
+                    <div style="flex: 1;">
+                      <input class="trk" type="range" min="5" max="200" step="5" value="{{buffer}}" onInput="{{setBuffer}}">
+                      <div class="ticks-flow"><span>หน่วงต่ำ</span><span>สมดุล</span><span>เสียงนิ่ง</span></div>
+                    </div>
+                    <div class="sunken" style="width: 62px; height: 20px; background: #fff; border-radius: 2px; display: flex; align-items: center; justify-content: center; font: bold 11px Tahoma; color: #1c3d63;">{{bufferLabel}}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: flex-start; gap: 7px; padding: 9px 10px; border: 1px solid #a8bcd6; border-radius: 3px; background-image: linear-gradient(180deg, #f4f8fd 0%, #e3edf8 100%); box-shadow: inset 0 1px 0 #fff;">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex: 0 0 15px; margin-top: 1px;"><circle cx="8" cy="8" r="6.6" fill="#cfe0f2" stroke="#5b82ad" stroke-width="1.1"></circle><rect x="7.25" y="6.6" width="1.5" height="5" rx=".7" fill="#274b73"></rect><circle cx="8" cy="4.5" r=".95" fill="#274b73"></circle></svg>
+                <div style="font: 10px Tahoma; color: #33506f; line-height: 1.5;">รับเสียงได้เฉพาะ Android 11 ขึ้นไป และบางแอปที่กันการอัดเสียงจะออกมาเงียบ</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ── บันทึก ── -->
+        <sc-if value="{{isRec}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 17px;">
+
+            <div class="gbox" style="padding: 15px 12px 13px;">
+              <div class="gbox-t">ปลายทาง</div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="frow">
+                  <div class="lbl">โฟลเดอร์</div>
+                  <div class="sunken" style="flex: 1; height: 20px; background: #fff; border-radius: 2px; display: flex; align-items: center; padding: 0 6px; font: 11px Tahoma;">D:\Recordings\AndroidRemote</div>
+                  <div class="xpbtn" style="padding: 0 10px;">เรียกดู…</div>
+                </div>
+                <div class="frow">
+                  <div class="lbl">รูปแบบไฟล์</div>
+                  <div class="combo" style="flex: 1;" onClick="{{cycleFormat}}">
+                    <div class="combo-v">{{formatVal}}</div>
+                    <div class="combo-b"><svg width="7" height="5" viewBox="0 0 8 5" fill="#2c2d38"><path d="M0 0h8L4 5z"></path></svg></div>
+                  </div>
+                </div>
+                <div class="frow">
+                  <div class="lbl">ตั้งชื่อไฟล์</div>
+                  <div class="sunken" style="flex: 1; height: 20px; background: #fff; border-radius: 2px; display: flex; align-items: center; padding: 0 6px; font: 11px Tahoma; color: #45465a;">{อุปกรณ์}_{วันที่}_{เวลา}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="gbox" style="padding: 15px 12px 13px;">
+              <div class="gbox-t">ตัวเลือกการบันทึก</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <sc-for list="{{recChecks}}" as="c" hint-placeholder-count="4">
+                  <div class="chkrow" onClick="{{c.toggle}}">
+                    <div class="chk">
+                      <sc-if value="{{c.on}}" hint-placeholder-val="{{true}}">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#1f6b2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.2 3.9 7.6 8.4 2.6"></path></svg>
+                      </sc-if>
+                    </div>
+                    <span style="font: 11px Tahoma;">{{c.n}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div class="frow" style="gap: 10px;">
+              <div class="sunken" style="flex: 1; height: 18px; border-radius: 9px; background: #fff; padding: 2px; display: flex;">
+                <div style="width: 34%; border-radius: 7px; background-image: linear-gradient(180deg, #8fd0a0 0%, #4f9c63 50%, #3d8250 51%, #2f6b40 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.7);"></div>
+              </div>
+              <div style="font: 11px Tahoma; color: #45465a; white-space: nowrap;">พื้นที่ว่าง 142 GB &#8212; พอบันทึกได้ราว 6 ชม.</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ── การควบคุม ── -->
+        <sc-if value="{{isCtrl}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 17px;">
+
+            <div class="gbox" style="padding: 15px 12px 13px;">
+              <div class="gbox-t">โหมดป้อนข้อมูล</div>
+              <div style="display: flex; flex-direction: column; gap: 7px;">
+                <sc-for list="{{modes}}" as="m" hint-placeholder-count="3">
+                  <div style="display: flex; gap: 9px; cursor: pointer; padding: 3px 2px;" onClick="{{m.pick}}">
+                    <div style="width: 13px; height: 13px; flex: 0 0 13px; margin-top: 1px; border-radius: 50%; border: 1px solid #83849a; background: #fff; box-shadow: inset 1px 1px 2px rgba(20,20,35,.28); display: flex; align-items: center; justify-content: center;">
+                      <div style="width: 6px; height: 6px; border-radius: 50%; background: {{m.dot}};"></div>
+                    </div>
+                    <div>
+                      <div style="font: 11px Tahoma; color: #1c1c22;">{{m.n}}</div>
+                      <div style="font: 10px Tahoma; color: #6a6b7a; line-height: 1.45; margin-top: 1px;">{{m.sub}}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div class="gbox" style="padding: 15px 12px 13px;">
+              <div class="gbox-t">พฤติกรรม</div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <sc-for list="{{ctrlChecks}}" as="c" hint-placeholder-count="4">
+                  <div class="chkrow" onClick="{{c.toggle}}">
+                    <div class="chk">
+                      <sc-if value="{{c.on}}" hint-placeholder-val="{{true}}">
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#1f6b2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.2 3.9 7.6 8.4 2.6"></path></svg>
+                      </sc-if>
+                    </div>
+                    <span style="font: 11px Tahoma;">{{c.n}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px; padding-top: 13px;">
+        <div style="flex: 1; font: 10px Tahoma; color: #6a6b7a;">ค่าที่ตั้งไว้จะใช้กับอุปกรณ์ที่เชื่อมต่อครั้งถัดไป</div>
+        <div class="xpbtn" style="min-width: 74px;">ค่าเริ่มต้น</div>
+        <div class="xpbtn" style="min-width: 74px;">ยกเลิก</div>
+        <div class="gel">ตกลง</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":560,"height":560}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      tab: 'video',
+      resIdx: 1, codecIdx: 0, fps: 60, bitrate: 8,
+      audioOn: true, sourceIdx: 0, acodecIdx: 0, buffer: 50,
+      formatIdx: 0,
+      mode: 'uhid',
+      v: { screenOff: true, showTouch: false, stayAwake: true, crop: false },
+      r: { withAudio: true, autoStop: false, splitFile: true, openFolder: false },
+      c: { clipboard: true, fileDrop: true, gamepad: false, rawKeys: false }
+    };
+  }
+
+  cycle(key, idx, len) {
+    var patch = {};
+    patch[key] = (idx + 1) % len;
+    this.setState(patch);
+  }
+
+  flip(group, key) {
+    var next = {};
+    var src = this.state[group];
+    Object.keys(src).forEach(function (k) { next[k] = src[k]; });
+    next[key] = !next[key];
+    var patch = {};
+    patch[group] = next;
+    this.setState(patch);
+  }
+
+  num(e, key) {
+    var v = e && e.target ? Number(e.target.value) : null;
+    if (v === null || isNaN(v)) { return; }
+    var patch = {};
+    patch[key] = v;
+    this.setState(patch);
+  }
+
+  renderVals() {
+    var self = this;
+    var s = this.state;
+
+    var TABS = [
+      { id: 'video', n: 'วิดีโอ' },
+      { id: 'audio', n: 'เสียง' },
+      { id: 'rec',   n: 'บันทึก' },
+      { id: 'ctrl',  n: 'การควบคุม' }
+    ];
+
+    var RES     = ['720 × 1560 (ประหยัดแบนด์วิดท์)', '1080 × 2340 (ตามจอจริง)', '1440 × 3120 (คมสูงสุด)'];
+    var CODECS  = ['H.264 — เข้ากันได้ทุกเครื่อง', 'H.265 / HEVC — ไฟล์เล็กกว่า', 'AV1 — ต้องรองรับฮาร์ดแวร์'];
+    var SOURCES = ['เสียงที่ออกลำโพงมือถือ', 'ไมโครโฟนของมือถือ', 'เสียงในสายโทรศัพท์'];
+    var ACODECS = ['Opus — หน่วงต่ำสุด', 'AAC', 'FLAC — ไม่สูญเสียคุณภาพ'];
+    var FORMATS = ['MP4 — เปิดได้ทุกที่', 'MKV — ทนไฟล์ขาด', 'MP4 + เสียงแยกไฟล์'];
+
+    var MODES = [
+      { id: 'std',  n: 'มาตรฐาน (ผ่าน adb)',        sub: 'ใช้ได้ทุกเครื่อง แต่คุมไม่ได้ตอนล็อกหน้าจอ' },
+      { id: 'uhid', n: 'UHID — คีย์บอร์ด/เมาส์เสมือน', sub: 'พิมพ์ไทยได้ตรง คีย์บอร์ดมือถือยังใช้ได้ ทำงานผ่าน Wi-Fi' },
+      { id: 'otg',  n: 'OTG — คีย์บอร์ด/เมาส์จริง',    sub: 'คุมได้แม้จออยู่หน้า lock screen ต้องเสียบสาย USB' }
+    ];
+
+    var V_LABELS = { screenOff: 'ปิดจอมือถือทันทีที่เริ่มมิเรอร์', showTouch: 'แสดงจุดสัมผัสบนจอมือถือ', stayAwake: 'กันเครื่องหลับระหว่างเชื่อมต่อ', crop: 'ครอบตัดขอบดำอัตโนมัติ' };
+    var R_LABELS = { withAudio: 'บันทึกเสียงไปพร้อมกัน', autoStop: 'หยุดบันทึกเองเมื่อหลุดการเชื่อมต่อ', splitFile: 'ตัดไฟล์ใหม่ทุก 30 นาที', openFolder: 'เปิดโฟลเดอร์เมื่อบันทึกเสร็จ' };
+    var C_LABELS = { clipboard: 'ซิงก์คลิปบอร์ดสองทาง', fileDrop: 'ลากไฟล์มาวางเพื่อส่งเข้าเครื่อง', gamepad: 'ส่งสัญญาณจอยเกมไปยังมือถือ', rawKeys: 'ส่งปุ่มดิบ (สำหรับอีมูเลเตอร์)' };
+
+    function checkList(group, labels) {
+      return Object.keys(labels).map(function (k) {
+        return { n: labels[k], on: s[group][k], toggle: function () { self.flip(group, k); } };
+      });
+    }
+
+    var bufLabel = s.buffer + ' ms';
+
+    return {
+      tabs: TABS.map(function (t) {
+        return { n: t.n, cls: t.id === s.tab ? 'tab act' : 'tab', pick: function () { self.setState({ tab: t.id }); } };
+      }),
+      isVideo: s.tab === 'video',
+      isAudio: s.tab === 'audio',
+      isRec:   s.tab === 'rec',
+      isCtrl:  s.tab === 'ctrl',
+
+      resVal: RES[s.resIdx],
+      codecVal: CODECS[s.codecIdx],
+      cycleRes:   function () { self.cycle('resIdx', s.resIdx, RES.length); },
+      cycleCodec: function () { self.cycle('codecIdx', s.codecIdx, CODECS.length); },
+
+      fps: s.fps,
+      fpsLabel: s.fps + ' fps',
+      setFps: function (e) { self.num(e, 'fps'); },
+      bitrate: s.bitrate,
+      bitrateLabel: s.bitrate + ' Mbps',
+      setBitrate: function (e) { self.num(e, 'bitrate'); },
+
+      videoChecks: checkList('v', V_LABELS),
+      recChecks:   checkList('r', R_LABELS),
+      ctrlChecks:  checkList('c', C_LABELS),
+
+      audioOn: s.audioOn,
+      audioBodyCls: s.audioOn ? '' : 'dim',
+      toggleAudio: function () { self.setState({ audioOn: !s.audioOn }); },
+      sourceVal: SOURCES[s.sourceIdx],
+      acodecVal: ACODECS[s.acodecIdx],
+      cycleSource: function () { self.cycle('sourceIdx', s.sourceIdx, SOURCES.length); },
+      cycleAcodec: function () { self.cycle('acodecIdx', s.acodecIdx, ACODECS.length); },
+      buffer: s.buffer,
+      bufferLabel: bufLabel,
+      setBuffer: function (e) { self.num(e, 'buffer'); },
+
+      formatVal: FORMATS[s.formatIdx],
+      cycleFormat: function () { self.cycle('formatIdx', s.formatIdx, FORMATS.length); },
+
+      modes: MODES.map(function (m) {
+        return { n: m.n, sub: m.sub, dot: m.id === s.mode ? '#e5a01a' : 'transparent', pick: function () { self.setState({ mode: m.id }); } };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

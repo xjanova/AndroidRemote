@@ -1,0 +1,348 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: Tahoma, "Segoe UI", sans-serif; font-size: 11px; color: #1c1c22; }
+    a { color: #1d5fa8; text-decoration: none; }
+    a:hover { color: #c8850c; text-decoration: underline; }
+
+    .metal {
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.34) 0 1px, rgba(78,78,98,.055) 1px 3px),
+        linear-gradient(180deg, #fdfdff 0%, #f2f3f9 8%, #dfe0eb 44%, #c9cad9 76%, #b4b5c6 94%, #8e8fa2 100%);
+      background-repeat: repeat, no-repeat;
+    }
+    .metal-tall {
+      background-color: #e7e8f1;
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255,255,255,.36) 0 1px, rgba(78,78,98,.05) 1px 3px),
+        linear-gradient(180deg, #fdfdff 0%, #f6f6fb 8%, #ebecf4 62%, #e7e8f1 100%);
+      background-repeat: repeat, no-repeat;
+      background-size: 100% 100%, 100% 30px;
+    }
+
+    .xpbtn {
+      height: 23px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      border: 1px solid #71727f; border-radius: 3px; cursor: pointer; user-select: none;
+      font: 11px Tahoma, sans-serif; color: #1c1c22; white-space: nowrap;
+      background-image: linear-gradient(180deg, #ffffff 0%, #f8f8fc 8%, #e9eaf3 46%, #d5d6e3 80%, #c2c3d3 100%);
+      box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 rgba(10,10,10,.32), 0 1px 1px rgba(0,0,0,.1);
+    }
+    .xpbtn:hover { border-color: #b98812; background-image: linear-gradient(180deg, #fffdf4 0%, #fdd889 24%, #f4bb33 62%, #e5a01a 100%); }
+    .xpbtn:active { background-image: linear-gradient(180deg, #b9bac9 0%, #d3d4e1 38%, #e6e7f0 100%); box-shadow: inset 1px 1px 2px rgba(10,10,10,.42); }
+
+    .gel {
+      height: 27px; padding: 0 20px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: 1px solid #a97708; border-radius: 14px; cursor: pointer; user-select: none;
+      font: bold 11px Tahoma, sans-serif; color: #3d2c04; white-space: nowrap;
+      background-image:
+        linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.42) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%),
+        linear-gradient(180deg, #fde08f 0%, #f6bc3c 50%, #e5a01a 51%, #c8850c 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(120,72,0,.42), 0 1px 2px rgba(0,0,0,.28);
+    }
+    .gel:hover { background-image: linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.5) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%), linear-gradient(180deg, #ffeaa8 0%, #f9c94e 50%, #eda812 51%, #d08d0d 100%); }
+    .gel:active { box-shadow: inset 0 2px 4px rgba(120,72,0,.55); }
+    .gel.dim { border-color: #9fa0b0; color: #7c7d8c; cursor: default;
+      background-image: linear-gradient(180deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,.3) 49.9%, rgba(255,255,255,0) 50%, rgba(255,255,255,0) 100%), linear-gradient(180deg, #e6e7f0 0%, #d5d6e3 50%, #c6c7d6 51%, #b3b4c4 100%); }
+
+    /* แท็บ XP */
+    .tab {
+      height: 22px; padding: 0 14px; display: inline-flex; align-items: center; position: relative; top: 2px;
+      border: 1px solid #9a9bad; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; user-select: none;
+      font: 11px Tahoma, sans-serif; color: #45465a;
+      background-image: linear-gradient(180deg, #f2f3f9 0%, #e4e5ee 50%, #d2d3e0 100%);
+      box-shadow: inset 1px 1px 0 rgba(255,255,255,.9);
+    }
+    .tab:hover { background-image: linear-gradient(180deg, #fffdf4 0%, #fde3a8 55%, #f7cd66 100%); border-color: #bd8a17; }
+    .tab.act {
+      top: 0; height: 24px; z-index: 3; color: #1c1c22; font-weight: bold; border-color: #8e8fa2;
+      background-image: linear-gradient(180deg, #ffffff 0%, #fbfbfe 8%, #f3f4f9 62%, #eceef5 100%);
+      box-shadow: inset 1px 1px 0 #fff, 0 -1px 2px rgba(0,0,0,.08);
+    }
+
+    .sunken { border: 1px solid #83849a; border-top-color: #5f6070; border-left-color: #5f6070; box-shadow: inset 1px 1px 2px rgba(20,20,35,.3), 0 1px 0 rgba(255,255,255,.8); }
+
+    .xpin {
+      height: 20px; padding: 0 6px; border: 1px solid #83849a; border-top-color: #5f6070; border-left-color: #5f6070;
+      background: #fff; box-shadow: inset 1px 1px 2px rgba(20,20,35,.24);
+      font: 11px Tahoma, sans-serif; color: #1c1c22; display: flex; align-items: center;
+    }
+
+    .row { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 2px; cursor: pointer; }
+    .row:hover { background: rgba(58,110,165,.13); }
+    .row.sel { background-image: linear-gradient(180deg, #6a9ad4 0%, #3a6ea5 55%, #2c5988 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
+    .row.sel .r-name { color: #fff; }
+    .row.sel .r-sub  { color: #d3e3f5; }
+
+    .chk { width: 13px; height: 13px; flex: 0 0 13px; border: 1px solid #83849a; border-top-color: #5f6070; border-left-color: #5f6070; background: #fff; box-shadow: inset 1px 1px 2px rgba(20,20,35,.26); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+    .gbox { position: relative; border: 1px solid #b7b8c8; border-top-color: #a0a1b2; border-radius: 3px; background: rgba(255,255,255,.45); box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(255,255,255,.7); }
+    .gbox-t { position: absolute; top: -7px; left: 9px; padding: 0 5px; font: bold 11px Tahoma, sans-serif; color: #3d4a63; background: #eceef5; }
+
+    .digit { width: 34px; height: 40px; display: flex; align-items: center; justify-content: center; background: #fff; border-radius: 2px; font: bold 20px "Trebuchet MS", Tahoma, sans-serif; color: #1c3d63; }
+  </style>
+</helmet>
+
+<div style="width: 560px; height: 500px; display: flex; align-items: center; justify-content: center; background-image: radial-gradient(120% 90% at 30% 0%, #64748f 0%, #4b5772 45%, #333d54 100%);">
+
+  <div style="width: 524px; height: 464px; display: flex; flex-direction: column; border: 1px solid #55566a; border-radius: 8px 8px 4px 4px; overflow: hidden; box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.16) inset;">
+
+    <!-- แถบหัว -->
+    <div class="metal" style="flex: 0 0 25px; display: flex; align-items: center; gap: 6px; padding: 0 3px 0 7px; box-shadow: inset 1px 1px 0 #fff, inset 0 -1px 0 #6f7080;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#2f4a6d" stroke-width="1.3" stroke-linecap="round">
+        <path d="M2.2 6.4a8.4 8.4 0 0 1 11.6 0"></path><path d="M4.6 9a5 5 0 0 1 6.8 0"></path><circle cx="8" cy="12" r="1.3" fill="#2f4a6d" stroke="none"></circle>
+      </svg>
+      <div style="flex: 1; font: bold 11px 'Trebuchet MS', Tahoma, sans-serif; color: #21222c; text-shadow: 0 1px 0 rgba(255,255,255,.9);">เชื่อมต่ออุปกรณ์</div>
+      <div style="width: 21px; height: 19px; border: 1px solid #8d3a2f; border-radius: 3px; display: flex; align-items: center; justify-content: center; background-image: linear-gradient(180deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.28) 49%, rgba(255,255,255,0) 50%), linear-gradient(180deg, #f08b74 0%, #d9503a 51%, #b23524 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.8);">
+        <svg width="9" height="9" viewBox="0 0 10 10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><line x1="1.6" y1="1.6" x2="8.4" y2="8.4"></line><line x1="8.4" y1="1.6" x2="1.6" y2="8.4"></line></svg>
+      </div>
+    </div>
+
+    <!-- ตัวหน้าต่าง -->
+    <div class="metal-tall" style="flex: 1; display: flex; flex-direction: column; padding: 12px 14px 13px; min-height: 0;">
+
+      <!-- แถบแท็บ -->
+      <div style="display: flex; align-items: flex-end; gap: 2px; padding-left: 3px;">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+          <div class="{{t.cls}}" onClick="{{t.pick}}">{{t.n}}</div>
+        </sc-for>
+      </div>
+
+      <!-- แผงเนื้อหาแท็บ -->
+      <div style="flex: 1; min-height: 0; margin-top: -1px; border: 1px solid #8e8fa2; border-radius: 0 3px 3px 3px; background: #eceef5; padding: 16px 14px 14px; box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(0,0,0,.09);">
+
+        <!-- ── USB ── -->
+        <sc-if value="{{isUsb}}" hint-placeholder-val="{{true}}">
+          <div style="height: 100%; display: flex; flex-direction: column; gap: 11px;">
+            <div style="font: 11px Tahoma; color: #45465a;">เลือกเครื่องที่เสียบสาย USB อยู่ แล้วกดเชื่อมต่อ</div>
+
+            <div class="sunken" style="flex: 1; min-height: 0; background: #fff; border-radius: 2px; padding: 3px; display: flex; flex-direction: column; gap: 1px;">
+              <sc-for list="{{usbDevices}}" as="d" hint-placeholder-count="3">
+                <div class="{{d.cls}}" onClick="{{d.pick}}">
+                  <div style="width: 26px; height: 26px; border-radius: 4px; display: flex; align-items: center; justify-content: center; border: 1px solid #a9aabb; background-image: linear-gradient(180deg, #f7f8fc 0%, #dcdde8 100%); box-shadow: inset 0 1px 0 #fff;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#3b5573" stroke-width="1.3"><rect x="4.6" y="1.6" width="6.8" height="12.8" rx="1.5" fill="#e6edf7"></rect><line x1="6.7" y1="12.4" x2="9.3" y2="12.4" stroke-linecap="round"></line></svg>
+                  </div>
+                  <div style="flex: 1; min-width: 0;">
+                    <div class="r-name" style="font: 11px Tahoma;">{{d.name}}</div>
+                    <div class="r-sub" style="font: 10px Tahoma; color: #6a6b7a;">{{d.serial}}</div>
+                  </div>
+                  <div style="padding: 1px 7px; border-radius: 9px; font: 10px Tahoma; color: {{d.badgeFg}}; background: {{d.badgeBg}}; border: 1px solid {{d.badgeBd}};">{{d.badge}}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 9px;">
+              <div class="xpbtn" style="gap: 6px;">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#33506f" stroke-width="1.35" stroke-linecap="round"><path d="M13.2 7.4a5.3 5.3 0 1 1-1.7-3.7"></path><path d="M13.4 2.1v3.1h-3.1"></path></svg>
+                สแกนใหม่
+              </div>
+              <div style="flex: 1; font: 10px Tahoma; color: #6a6b7a; line-height: 1.45;">ไม่เห็นเครื่อง? เปิด <b>ตัวเลือกสำหรับนักพัฒนา &#8594; USB debugging</b> แล้วกดอนุญาตบนมือถือ</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ── ไร้สาย ── -->
+        <sc-if value="{{isWifi}}" hint-placeholder-val="{{true}}">
+          <div style="height: 100%; display: flex; flex-direction: column; gap: 14px;">
+
+            <div class="gbox" style="padding: 15px 12px 12px;">
+              <div class="gbox-t">ที่อยู่เครื่อง</div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font: 11px Tahoma; width: 56px;">IP</span>
+                <div class="xpin" style="flex: 1;">192.168.1.42</div>
+                <span style="font: 11px Tahoma;">พอร์ต</span>
+                <div class="xpin" style="width: 58px;">5555</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 7px; margin-top: 10px;" onClick="{{toggleRemember}}">
+                <div class="chk">
+                  <sc-if value="{{remember}}" hint-placeholder-val="{{true}}">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#1f6b2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 5.2 3.9 7.6 8.4 2.6"></path></svg>
+                  </sc-if>
+                </div>
+                <span style="font: 11px Tahoma; cursor: pointer;">จำเครื่องนี้ไว้ และต่อให้อัตโนมัติเมื่อเจอในวง LAN</span>
+              </div>
+            </div>
+
+            <div class="gbox" style="flex: 1; min-height: 0; padding: 15px 10px 10px; display: flex; flex-direction: column;">
+              <div class="gbox-t">เครื่องที่บันทึกไว้</div>
+              <div class="sunken" style="flex: 1; min-height: 0; background: #fff; border-radius: 2px; padding: 3px; display: flex; flex-direction: column; gap: 1px;">
+                <sc-for list="{{savedDevices}}" as="d" hint-placeholder-count="3">
+                  <div class="{{d.cls}}" onClick="{{d.pick}}">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: {{d.dot}}; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 0 4px {{d.dot}};"></div>
+                    <div style="flex: 1; min-width: 0;">
+                      <div class="r-name" style="font: 11px Tahoma;">{{d.name}}</div>
+                      <div class="r-sub" style="font: 10px Tahoma; color: #6a6b7a;">{{d.addr}}</div>
+                    </div>
+                    <div class="r-sub" style="font: 10px Tahoma; color: #6a6b7a;">{{d.seen}}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: flex-start; gap: 7px; padding: 8px 9px; border: 1px solid #c9a53e; border-radius: 3px; background-image: linear-gradient(180deg, #fffaea 0%, #fdf0c8 100%); box-shadow: inset 0 1px 0 #fff;">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex: 0 0 15px; margin-top: 1px;"><path d="M8 1.9 15 14H1z" fill="#f0c040" stroke="#a8801a" stroke-width="1.1" stroke-linejoin="round"></path><rect x="7.25" y="6" width="1.5" height="4.2" rx=".7" fill="#5a4207"></rect><circle cx="8" cy="11.9" r=".95" fill="#5a4207"></circle></svg>
+              <div style="font: 10px Tahoma; color: #5c4708; line-height: 1.5;">พอร์ต 5555 จะหายทุกครั้งที่รีบูตมือถือ &#8212; ถ้าอยากให้จำถาวร ใช้แท็บ <b>จับคู่ใหม่</b> แทน</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ── จับคู่ใหม่ ── -->
+        <sc-if value="{{isPair}}" hint-placeholder-val="{{true}}">
+          <div style="height: 100%; display: flex; gap: 16px;">
+
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+              <div style="font: 11px Tahoma; color: #45465a; line-height: 1.55;">บนมือถือ เปิด <b>ตัวเลือกสำหรับนักพัฒนา &#8594; การแก้จุดบกพร่องแบบไร้สาย &#8594; จับคู่อุปกรณ์ด้วยรหัส</b></div>
+
+              <div class="gbox" style="padding: 15px 11px 12px;">
+                <div class="gbox-t">รหัสจับคู่ 6 หลัก</div>
+                <div class="sunken" style="border-radius: 3px; padding: 4px; display: flex; gap: 4px; background: #dfe1ea;">
+                  <sc-for list="{{code}}" as="c" hint-placeholder-count="6">
+                    <div class="digit">{{c.d}}</div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font: 11px Tahoma; width: 78px;">ที่อยู่จับคู่</span>
+                <div class="xpin" style="flex: 1;">192.168.1.42:37419</div>
+              </div>
+
+              <div style="flex: 1;"></div>
+              <div style="font: 10px Tahoma; color: #6a6b7a; line-height: 1.5;">จับคู่ครั้งเดียว เครื่องจะจำกันไว้ถาวร ไม่ต้องเสียบสายอีก</div>
+            </div>
+
+            <div style="flex: 0 0 150px; display: flex; flex-direction: column; gap: 8px; align-items: center;">
+              <div class="sunken" style="width: 150px; height: 150px; background: #fff; border-radius: 2px; display: flex; align-items: center; justify-content: center;">
+                <div style="width: 118px; height: 118px; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 2px;">
+                  <sc-for list="{{qr}}" as="q" hint-placeholder-count="81">
+                    <div style="border-radius: 1px; background: {{q.c}};"></div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="font: 10px Tahoma; color: #6a6b7a; text-align: center; line-height: 1.5;">หรือสแกน QR<br>จากหน้าจับคู่ของมือถือ</div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- แถวปุ่ม -->
+      <div style="display: flex; align-items: center; gap: 8px; padding-top: 13px;">
+        <div style="flex: 1; display: flex; align-items: center; gap: 6px; font: 11px Tahoma; color: #5b6a80;">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{hintDot}}; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 0 4px {{hintDot}};"></div>
+          {{hintText}}
+        </div>
+        <div class="xpbtn" style="min-width: 74px;">ยกเลิก</div>
+        <div class="{{connectCls}}">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#5a3f04" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 8h8.2"></path><path d="M8.1 5.1 11 8l-2.9 2.9"></path><path d="M12.4 3.2h1a.9.9 0 0 1 .9.9v7.8a.9.9 0 0 1-.9.9h-1"></path></svg>
+          {{connectLabel}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":560,"height":500}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 'usb', usbSel: 'a', savedSel: 'p1', remember: true };
+  }
+
+  renderVals() {
+    var self = this;
+    var s = this.state;
+
+    var TABS = [
+      { id: 'usb',  n: 'สาย USB' },
+      { id: 'wifi', n: 'ไร้สาย' },
+      { id: 'pair', n: 'จับคู่ใหม่' }
+    ];
+
+    var USB = [
+      { id: 'a', name: 'Galaxy S23 Ultra', serial: 'R5CT80XXXXW', state: 'ready' },
+      { id: 'b', name: 'Redmi Note 13',    serial: '9f2a1c4b',    state: 'perm'  },
+      { id: 'c', name: 'Pixel 8',          serial: '2B091FDH2007X', state: 'unauth' }
+    ];
+
+    var BADGE = {
+      ready:  { t: 'พร้อม',        fg: '#1f6b2c', bg: '#e4f4e6', bd: '#8dc196' },
+      perm:   { t: 'ติดสิทธิ์',    fg: '#8a6508', bg: '#fdf4dc', bd: '#d8b355' },
+      unauth: { t: 'รออนุญาต',    fg: '#8d3a2f', bg: '#fbe9e6', bd: '#d99e93' }
+    };
+
+    var SAVED = [
+      { id: 'p1', name: 'Pixel 8',        addr: '192.168.1.42:5555', seen: 'เมื่อครู่',    dot: '#3f9c4a' },
+      { id: 'p2', name: 'Redmi Note 13',  addr: '192.168.1.57:5555', seen: '12 นาทีที่แล้ว', dot: '#3f9c4a' },
+      { id: 'p3', name: 'Galaxy Tab S9',  addr: '192.168.1.88:5555', seen: 'เมื่อวาน',     dot: '#8b8c9e' }
+    ];
+
+    var HINT = {
+      usb:  { t: 'พบอุปกรณ์ 3 เครื่องบนสาย USB', d: '#3f9c4a' },
+      wifi: { t: 'พร้อมเชื่อมต่อผ่าน Wi-Fi',       d: '#3f9c4a' },
+      pair: { t: 'รอรหัสจากมือถือ',                d: '#d4a017' }
+    };
+
+    var LABEL = { usb: 'เชื่อมต่อ', wifi: 'เชื่อมต่อ', pair: 'จับคู่และเชื่อมต่อ' };
+
+    var selUsb = USB.filter(function (d) { return d.id === s.usbSel; })[0];
+    var canConnect = s.tab !== 'usb' || (selUsb && selUsb.state === 'ready');
+
+    var QR_ROWS = [
+      '111011101', '100010001', '101010101', '000110010',
+      '110101011', '010011000', '101010111', '100010001', '111011101'
+    ];
+    var qr = [];
+    QR_ROWS.forEach(function (row) {
+      row.split('').forEach(function (ch) { qr.push({ c: ch === '1' ? '#16202e' : '#ffffff' }); });
+    });
+
+    return {
+      tabs: TABS.map(function (t) {
+        return { n: t.n, cls: t.id === s.tab ? 'tab act' : 'tab', pick: function () { self.setState({ tab: t.id }); } };
+      }),
+
+      isUsb:  s.tab === 'usb',
+      isWifi: s.tab === 'wifi',
+      isPair: s.tab === 'pair',
+
+      usbDevices: USB.map(function (d) {
+        var b = BADGE[d.state];
+        return {
+          name: d.name, serial: d.serial,
+          badge: b.t, badgeFg: b.fg, badgeBg: b.bg, badgeBd: b.bd,
+          cls: d.id === s.usbSel ? 'row sel' : 'row',
+          pick: function () { self.setState({ usbSel: d.id }); }
+        };
+      }),
+
+      savedDevices: SAVED.map(function (d) {
+        return {
+          name: d.name, addr: d.addr, seen: d.seen, dot: d.dot,
+          cls: d.id === s.savedSel ? 'row sel' : 'row',
+          pick: function () { self.setState({ savedSel: d.id }); }
+        };
+      }),
+
+      code: [{ d: '4' }, { d: '8' }, { d: '1' }, { d: '9' }, { d: '0' }, { d: '3' }],
+      qr: qr,
+
+      remember: s.remember,
+      toggleRemember: function () { self.setState({ remember: !s.remember }); },
+
+      hintText: HINT[s.tab].t,
+      hintDot: HINT[s.tab].d,
+      connectLabel: LABEL[s.tab],
+      connectCls: canConnect ? 'gel' : 'gel dim'
+    };
+  }
+}
+</script>
+</body>
+</html>

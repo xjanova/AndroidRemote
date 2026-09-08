@@ -1,0 +1,31 @@
+{
+  "name": "androidremote",
+  "version": "0.1.0",
+  "private": true,
+  "description": "รีโมทมือถือแอนดรอยด์จาก PC — ควบคุมเต็มระดับ ตั้งแต่ adb shell ถึง root",
+  "author": "xman",
+  "license": "UNLICENSED",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "server:build": "node scripts/build-server.mjs",
+    "helper:build": "node scripts/build-inputhelper.mjs",
+    "native:build": "npm run server:build && npm run helper:build",
+    "smoke:adb": "tsx scripts/smoke-adb.ts",
+    "smoke:discovery": "tsx scripts/smoke-discovery.ts",
+    "smoke:gamepad": "tsx scripts/smoke-gamepad.ts",
+    "dist": "npm run build && electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}
