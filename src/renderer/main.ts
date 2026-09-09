@@ -232,12 +232,36 @@ function renderDeviceDetail(): void {
           .join('')}
       </div>
       ${
+        d.transport === 'usb' && d.state === 'device'
+          ? `<button class="xpbtn" id="detail-wifi" style="width:100%;margin-top:10px;justify-content:center" title="สั่ง adb tcpip แล้วต่อผ่าน Wi-Fi ให้เอง ไม่ต้องจับคู่ ไม่ต้องพึ่ง mDNS">เปิดไร้สายผ่านสายนี้ แล้วถอดสายได้</button>`
+          : ''
+      }
+      ${
         d.probeError
           ? `<div style="margin-top:9px;color:#a5301f;line-height:1.5">ตรวจไม่สำเร็จ: ${esc(d.probeError)}</div>`
           : ''
       }
     </div>
   `);
+  document.getElementById('detail-wifi')?.addEventListener('click', () => void wirelessViaUsb());
+}
+
+/**
+ * ทางที่ไม่พึ่ง mDNS: เสียบสายครั้งเดียว ให้แอปสั่ง tcpip + อ่าน IP + ต่อ + จำเครื่อง
+ * หลังจากนี้ถอดสายได้ และครั้งหน้าเจอบนวงเมื่อไหร่ต่อให้เอง
+ */
+async function wirelessViaUsb(): Promise<void> {
+  const d = selected();
+  if (!d) return;
+  const btn = document.getElementById('detail-wifi') as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'กำลังเปิด… (สายจะหลุดชั่วครู่ ปกติ)';
+  }
+  localLog('info', `กำลังเปิดไร้สายผ่านสาย USB ของ ${d.model ?? d.serial}`);
+  const res = await api.wirelessViaUsb(d.serial);
+  localLog(res.ok ? 'info' : 'warn', res.message);
+  renderAll();
 }
 
 function renderCapabilities(): void {
@@ -723,6 +747,7 @@ function wireControls(): void {
 
   el('btn-refresh').addEventListener('click', () => void refreshSelected());
   el('btn-restart-adb').addEventListener('click', () => void restartAdb());
+  el('btn-log').addEventListener('click', () => void api.logOpen());
   el('btn-wireless').addEventListener('click', () => openWireless());
   el('btn-mirror').addEventListener('click', () => {
     if (isMirroring()) void stopMirror();

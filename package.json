@@ -19,7 +19,8 @@
     "smoke:gamepad": "tsx scripts/smoke-gamepad.ts",
     "dist": "npm run build && electron-builder --win --x64",
     "apk:build": "node scripts/build-apk.mjs",
-    "apk:keygen": "node scripts/make-release-key.mjs"
+    "apk:keygen": "node scripts/make-release-key.mjs",
+    "doctor": "tsx scripts/doctor.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

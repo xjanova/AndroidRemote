@@ -318,6 +318,37 @@ export class AdbClient {
 
   // ─────────────────────────────── ไร้สาย ───────────────────────────────
 
+  /**
+   * สั่งให้ adbd บนเครื่องเปิดรับ TCP ที่พอร์ตนี้ (เทียบเท่า `adb tcpip 5555`)
+   *
+   * นี่คือทางที่**ไม่ต้องพึ่ง mDNS ไม่ต้องจับคู่ และใช้ได้ทุกรุ่นแอนดรอยด์**
+   * ต้องเสียบสายอยู่ตอนสั่ง adbd จะรีสตาร์ตแล้วเครื่องหลุดจาก USB ชั่วครู่ — ปกติ
+   * ⚠ ค่านี้หายเมื่อรีบูตมือถือ (แอปคู่หูบนเครื่อง root คืนให้เองตอนบูต)
+   */
+  async tcpip(serial: string, port = 5555): Promise<string> {
+    const sock = await this.openTransport(serial);
+    try {
+      await sock.request(`tcpip:${port}`);
+      return (await sock.readToEnd()).toString('utf8').trim();
+    } finally {
+      sock.close();
+    }
+  }
+
+  /** IPv4 ของมือถือบน Wi-Fi — null ถ้าไม่ได้ต่อ Wi-Fi */
+  async wifiAddress(serial: string): Promise<string | null> {
+    // ลอง wlan0 ก่อน แล้วค่อยกวาดทุกอินเทอร์เฟซ เพราะบางเครื่องชื่อไม่ใช่ wlan0
+    const res = await this.exec(
+      serial,
+      "ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}'; ip -4 -o addr show 2>/dev/null | grep -v ' lo ' | awk '{print $4}'",
+    );
+    for (const line of res.stdout.split('\n')) {
+      const m = /^(\d+\.\d+\.\d+\.\d+)/.exec(line.trim());
+      if (m && !m[1].startsWith('127.')) return m[1];
+    }
+    return null;
+  }
+
   /** ต่อเครื่องผ่าน TCP — คืนข้อความที่ adb ตอบกลับมาตามจริง */
   async connectTcp(hostPort: string): Promise<string> {
     const sock = await this.open();

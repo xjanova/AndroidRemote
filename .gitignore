@@ -29,3 +29,6 @@ design/androidremote-xp-silver.html
 Thumbs.db
 .vscode/
 .idea/
+
+# รายงานจาก npm run doctor — สร้างใหม่ได้ทุกครั้ง
+doctor-report.txt

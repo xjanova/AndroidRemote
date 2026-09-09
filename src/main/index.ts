@@ -12,6 +12,7 @@ import { ServerSession, listCameras } from './server/ServerSession';
 import { GamepadServer } from './gamepad/GamepadServer';
 import { KeyInjector } from './gamepad/KeyInjector';
 import { AutoUpdate } from './update/AutoUpdate';
+import { FileLog } from './log';
 import {
   SCREEN_POWER,
   encodeKeycode,
@@ -35,11 +36,54 @@ let updater: AutoUpdate;
 let keymap: Record<string, number> = { ...DEFAULT_KEYMAP };
 
 /** ส่ง log ไปโชว์ในแอปด้วย ไม่ใช่แค่ค้างอยู่ใน terminal ที่ผู้ใช้ไม่เห็น */
+let fileLog: FileLog | null = null;
+
 function pushLog(level: LogEntry['level'], scope: string, message: string): void {
   const entry: LogEntry = { level, scope, message, at: Date.now() };
   // eslint-disable-next-line no-console
   console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](`[${scope}] ${message}`);
+  // ลงไฟล์ด้วยเสมอ — กล่องในแอปหายตอนปิด แต่ไฟล์นี้คือสิ่งเดียวที่เอามาวินิจฉัยทีหลังได้
+  fileLog?.write(level, scope, message);
   mainWindow?.webContents.send(IPC.evtLog, entry);
+}
+
+/**
+ * เปิดไร้สายผ่านสาย USB ที่เสียบอยู่ — ทางที่ไม่ต้องพึ่ง mDNS และไม่ต้องจับคู่
+ * ลำดับสำคัญ: อ่าน IP **ก่อน** สั่ง tcpip เพราะหลังสั่ง adbd รีสตาร์ตแล้วสายจะหลุดชั่วครู่
+ */
+async function enableWirelessViaUsb(serial: string): Promise<{ ok: boolean; hostPort?: string; message: string }> {
+  const device = registry.get(serial);
+  if (!device || device.state !== 'device') return { ok: false, message: 'เครื่องยังไม่พร้อม' };
+  if (device.transport !== 'usb') return { ok: false, message: 'ต้องเป็นเครื่องที่เสียบสาย USB อยู่' };
+
+  const ip = await adb.wifiAddress(serial);
+  if (!ip) {
+    return { ok: false, message: 'มือถือยังไม่ได้ต่อ Wi-Fi — ต่อ Wi-Fi วงเดียวกับ PC ก่อนแล้วลองใหม่' };
+  }
+
+  const reply = await adb.tcpip(serial, 5555).catch((e) => `ผิดพลาด: ${e instanceof Error ? e.message : e}`);
+  pushLog('info', 'ไร้สาย', `สั่ง tcpip 5555 บน ${device.model ?? serial}: ${reply || '(เงียบ)'}`);
+
+  // adbd กำลังรีสตาร์ต — รอให้มันขึ้นมารับ TCP ก่อนค่อยต่อ
+  const hostPort = `${ip}:5555`;
+  let message = '';
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    message = await adb.connectTcp(hostPort).catch((e) => String(e));
+    if (/connected to/i.test(message)) {
+      if (device.hwSerial) {
+        known.remember({ serial: device.hwSerial, name: device.model, lastAddress: ip, lastPort: 5555 });
+      }
+      pushLog('info', 'ไร้สาย', `${device.model ?? serial} พร้อมใช้ไร้สายที่ ${hostPort} — ถอดสายได้เลย`);
+      return { ok: true, hostPort, message: `ต่อไร้สายที่ ${hostPort} แล้ว ถอดสาย USB ได้เลย` };
+    }
+  }
+  pushLog('warn', 'ไร้สาย', `เปิด tcpip แล้วแต่ต่อ ${hostPort} ไม่ติด: ${message}`);
+  return {
+    ok: false,
+    hostPort,
+    message: `เปิดโหมดแล้วแต่ต่อ ${hostPort} ไม่ติด — เช็คว่า PC กับมือถืออยู่วงเดียวกัน (${message})`,
+  };
 }
 
 async function buildAdbStatus(): Promise<AdbStatus> {
@@ -182,6 +226,14 @@ function registerIpc(): void {
     pushLog(result.ok ? 'info' : 'warn', 'จับคู่', result.message);
     return result;
   });
+
+  ipcMain.handle(IPC.wirelessViaUsb, (_e, serial: string) => enableWirelessViaUsb(serial));
+
+  ipcMain.handle(IPC.logPath, () => fileLog?.filePath ?? null);
+  ipcMain.handle(IPC.logOpen, () => {
+    if (fileLog) shell.showItemInFolder(fileLog.filePath);
+  });
+  ipcMain.handle(IPC.logTail, () => fileLog?.tail() ?? '');
 
   ipcMain.handle(IPC.knownDevices, () => known.list());
   ipcMain.handle(IPC.forgetDevice, (_e, serial: string) => {
@@ -417,7 +469,18 @@ if (!gotLock) {
   });
 
   void app.whenReady().then(async () => {
+    fileLog = new FileLog(app.getPath('userData'));
+    fileLog.banner({
+      เวอร์ชัน: app.getVersion(),
+      แพ็กแล้ว: app.isPackaged,
+      exe: process.execPath,
+      resources: process.resourcesPath,
+      platform: `${process.platform} ${process.getSystemVersion()}`,
+      electron: process.versions.electron,
+    });
+
     adb = new AdbClient({ log: (level, message) => pushLog(level, 'adb', message) });
+    pushLog('info', 'adb', `ใช้ adb ที่ ${adb.executablePath ?? '(หาไม่เจอ)'}`);
     known = new KnownDevices(app.getPath('userData'));
     registry = createRegistry();
     discovery = new Discovery(
@@ -485,5 +548,8 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  app.on('before-quit', () => stopSession('ปิดแอป'));
+  app.on('before-quit', () => {
+    stopSession('ปิดแอป');
+    fileLog?.close();
+  });
 }

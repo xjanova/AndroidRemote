@@ -49,7 +49,11 @@ const api: AndroidRemoteApi = {
   discoveryCancelSweep: () => ipcRenderer.send(IPC.discoveryCancelSweep),
   discoveryConnect: (hostPort, serial) => ipcRenderer.invoke(IPC.discoveryConnect, hostPort, serial),
   discoveryPair: (hostPort, code) => ipcRenderer.invoke(IPC.discoveryPair, hostPort, code),
+  wirelessViaUsb: (serial) => ipcRenderer.invoke(IPC.wirelessViaUsb, serial),
   knownDevices: () => ipcRenderer.invoke(IPC.knownDevices),
+  logPath: () => ipcRenderer.invoke(IPC.logPath),
+  logOpen: () => ipcRenderer.invoke(IPC.logOpen) as Promise<void>,
+  logTail: () => ipcRenderer.invoke(IPC.logTail),
   forgetDevice: (serial) => ipcRenderer.invoke(IPC.forgetDevice, serial) as Promise<void>,
   setAutoConnect: (serial, on) => ipcRenderer.invoke(IPC.setAutoConnect, serial, on) as Promise<void>,
 

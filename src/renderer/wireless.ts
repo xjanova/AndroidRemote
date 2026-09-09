@@ -44,6 +44,11 @@ export function openWirelessDialog(api: AndroidRemoteApi, log: Log): void {
   let manualDraft = '';
   let busyKey: string | null = null;
 
+  /** ว่างนานเกินนี้ให้ขึ้นคำแนะนำ — คนที่รอเฉยๆ ไม่มีทางรู้ว่าต้องเปิดหน้าจับคู่ค้างไว้ */
+  const EMPTY_HINT_AFTER_MS = 8000;
+  const openedAt = Date.now();
+  const hintTimer = window.setTimeout(() => render(), EMPTY_HINT_AFTER_MS + 200);
+
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
   root.appendChild(backdrop);
@@ -54,6 +59,7 @@ export function openWirelessDialog(api: AndroidRemoteApi, log: Log): void {
   });
 
   function close(): void {
+    window.clearTimeout(hintTimer);
     unsubscribe();
     document.removeEventListener('keydown', onKeyDown);
     backdrop.remove();
@@ -213,6 +219,18 @@ export function openWirelessDialog(api: AndroidRemoteApi, log: Log): void {
                   : devices.map(foundRow).join('')
               }
             </div>
+            ${
+              devices.length === 0 && Date.now() - openedAt > EMPTY_HINT_AFTER_MS
+                ? `<div class="blocker" style="margin-top:9px">
+                     <div class="blocker__title">ผ่านไป ${Math.round(EMPTY_HINT_AFTER_MS / 1000)} วินาทีแล้วยังว่าง — เช็คตามนี้</div>
+                     <ol class="blocker__steps">
+                       <li>บนมือถือ เปิดหน้า <b>การแก้จุดบกพร่องแบบไร้สาย → จับคู่อุปกรณ์ด้วยรหัส</b> แล้ว<b>ค้างหน้านั้นไว้</b> — เครื่องประกาศตัวให้จับคู่เฉพาะตอนหน้านี้เปิดอยู่</li>
+                       <li>มือถือกับ PC ต้องอยู่ Wi-Fi <b>วงเดียวกัน</b> ไม่ใช่ Guest Wi-Fi และไม่ได้เปิดเน็ตมือถืออยู่</li>
+                       <li>ถ้า PC ต่อสาย LAN เราเตอร์หลายตัว<b>ไม่ส่ง mDNS ข้ามไป Wi-Fi</b> — ทางที่ชัวร์ที่สุดคือเสียบสาย USB ครั้งเดียวแล้วกด “เปิดไร้สายผ่านสายนี้” ในแผงซ้าย หลังจากนั้นถอดสายได้ตลอด</li>
+                     </ol>
+                   </div>`
+                : ''
+            }
             <div style="display:flex;align-items:center;gap:8px;margin-top:9px">
               ${
                 state.sweeping
@@ -229,8 +247,13 @@ export function openWirelessDialog(api: AndroidRemoteApi, log: Log): void {
             <div class="gbox__title">ใส่ที่อยู่เอง</div>
             <div style="display:flex;gap:7px;align-items:center">
               <input class="text-input" id="manual-input" style="flex:1"
-                     placeholder="192.168.1.42:5555" value="${esc(manualDraft)}" />
+                     placeholder="เช่น 192.168.1.42:5555" value="${esc(manualDraft)}" />
               <button class="xpbtn" id="wl-manual"${busyKey === 'manual' ? ' disabled' : ''}>ต่อ</button>
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:var(--ink-dim);line-height:1.6">
+              <b>Android 11 ขึ้นไป</b> — พอร์ตไม่ใช่ 5555 ให้ดูเลข IP:พอร์ต ในหน้า “การแก้จุดบกพร่องแบบไร้สาย” บนมือถือ
+              และต้อง<b>จับคู่ก่อนหนึ่งครั้ง</b> (กด “จับคู่อุปกรณ์ด้วยรหัส” บนมือถือ แล้วเครื่องจะโผล่ในรายการด้านบนเอง)<br />
+              <b>Android 10 ลงไป</b> — เสียบสายแล้วสั่ง <code>adb tcpip 5555</code> หนึ่งครั้ง จากนั้นใช้ IP:5555
             </div>
           </div>
 

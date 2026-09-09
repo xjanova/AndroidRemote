@@ -115,7 +115,14 @@ export interface AndroidRemoteApi {
   discoveryCancelSweep(): void;
   discoveryConnect(hostPort: string, serial: string | null): Promise<WirelessResult>;
   discoveryPair(hostPort: string, code: string): Promise<WirelessResult>;
+  /** เปิดไร้สายผ่านสาย USB ที่เสียบอยู่ — ไม่พึ่ง mDNS ไม่ต้องจับคู่ */
+  wirelessViaUsb(serial: string): Promise<{ ok: boolean; hostPort?: string; message: string }>;
   knownDevices(): Promise<KnownDeviceView[]>;
+
+  /** ─── ไฟล์ log ─── */
+  logPath(): Promise<string | null>;
+  logOpen(): Promise<void>;
+  logTail(): Promise<string>;
   forgetDevice(serial: string): Promise<void>;
   setAutoConnect(serial: string, on: boolean): Promise<void>;
 
@@ -181,6 +188,10 @@ export const IPC = {
   discoveryCancelSweep: 'discovery:cancel-sweep',
   discoveryConnect: 'discovery:connect',
   discoveryPair: 'discovery:pair',
+  wirelessViaUsb: 'wireless:via-usb',
+  logPath: 'log:path',
+  logOpen: 'log:open',
+  logTail: 'log:tail',
   knownDevices: 'known:list',
   forgetDevice: 'known:forget',
   setAutoConnect: 'known:auto-connect',
