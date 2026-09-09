@@ -22,7 +22,8 @@
     "apk:keygen": "node scripts/make-release-key.mjs",
     "doctor": "tsx scripts/doctor.ts",
     "smoke:automation": "tsx scripts/smoke-automation.ts",
-    "smoke:mirror": "tsx scripts/smoke-mirror.ts"
+    "smoke:mirror": "tsx scripts/smoke-mirror.ts",
+    "smoke:nox": "tsx scripts/smoke-nox.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

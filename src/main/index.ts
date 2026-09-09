@@ -17,6 +17,8 @@ import { MacroPlayer, MacroRecorder, MacroStore } from './automation/Macros';
 import { Scheduler } from './automation/Scheduler';
 import { dumpUi } from './automation/UiDump';
 import type { ScheduleView, UiSelector } from '../shared/automation';
+import { EmulatorManager } from './emulator/EmulatorManager';
+import type { CreateEmulatorSpec, EmulatorBrandId } from '../shared/emulator';
 import {
   SCREEN_POWER,
   encodeKeycode,
@@ -38,6 +40,7 @@ let macroStore: MacroStore;
 let recorder: MacroRecorder;
 let player: MacroPlayer;
 let scheduler: Scheduler;
+let emulators: EmulatorManager;
 let gamepad: GamepadServer;
 let injector: KeyInjector;
 let updater: AutoUpdate;
@@ -258,6 +261,15 @@ function registerIpc(): void {
   ipcMain.handle(IPC.updateCheck, () => updater.check());
   ipcMain.handle(IPC.updateDownload, () => updater.download());
   ipcMain.on(IPC.updateInstall, () => updater.installNow());
+
+  // ─────────────────────────── สั่งจัดการอีมูเลเตอร์ ───────────────────────────
+
+  ipcMain.handle(IPC.emuState, () => emulators.state());
+  ipcMain.handle(IPC.emuCreate, (_e, brand: EmulatorBrandId, spec: CreateEmulatorSpec) => emulators.create(brand, spec));
+  ipcMain.handle(IPC.emuLaunch, (_e, brand: EmulatorBrandId, id: string) => emulators.launch(brand, id));
+  ipcMain.handle(IPC.emuQuit, (_e, brand: EmulatorBrandId, id: string) => emulators.quit(brand, id));
+  ipcMain.handle(IPC.emuReboot, (_e, brand: EmulatorBrandId, id: string) => emulators.reboot(brand, id));
+  ipcMain.handle(IPC.emuRemove, (_e, brand: EmulatorBrandId, id: string) => emulators.remove(brand, id));
 
   // ─────────────────────────── โหมดจอยเกม ───────────────────────────
 
@@ -619,6 +631,10 @@ if (!gotLock) {
     scheduler = new Scheduler(app.getPath('userData'), runScheduled, (level, message) =>
       pushLog(level, 'ตั้งเวลา', message),
     );
+    emulators = new EmulatorManager(adb.executablePath, (level, message) => pushLog(level, 'อีมูเลเตอร์', message));
+    emulators.on('changed', () => {
+      void emulators.state().then((s) => mainWindow?.webContents.send(IPC.evtEmuChanged, s));
+    });
 
     loadKeymap();
     injector = new KeyInjector((level, message) => pushLog(level, 'จอย', message));

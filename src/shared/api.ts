@@ -5,6 +5,12 @@
 
 import type { AdbStatus, DeviceInfo, DiscoveryState, GamepadStateView, ShellResult } from './types';
 import type { MacroRunState, MacroView, ScheduleView, UiNodeView, UiSelector } from './automation';
+import type {
+  CreateEmulatorSpec,
+  EmulatorBrandId,
+  EmulatorManagerState,
+  EmulatorOpResult,
+} from './emulator';
 
 /** เครื่องที่เคยจับคู่ไว้ — โครงเดียวกับที่ main เก็บลงไฟล์ */
 export interface KnownDeviceView {
@@ -166,6 +172,15 @@ export interface AndroidRemoteApi {
   updateDownload(): Promise<void>;
   updateInstall(): void;
 
+  /** ─── สั่งจัดการอีมูเลเตอร์ (สร้าง/เปิด/ปิด/ลบเครื่อง Nox ฯลฯ) ─── */
+  emuState(): Promise<EmulatorManagerState>;
+  emuCreate(brand: EmulatorBrandId, spec: CreateEmulatorSpec): Promise<EmulatorOpResult>;
+  emuLaunch(brand: EmulatorBrandId, id: string): Promise<EmulatorOpResult>;
+  emuQuit(brand: EmulatorBrandId, id: string): Promise<EmulatorOpResult>;
+  emuReboot(brand: EmulatorBrandId, id: string): Promise<EmulatorOpResult>;
+  emuRemove(brand: EmulatorBrandId, id: string): Promise<EmulatorOpResult>;
+  onEmuChanged(cb: (state: EmulatorManagerState) => void): () => void;
+
   /** ─── โหมดจอยเกม ─── */
   gamepadState(): Promise<GamepadStateView>;
   gamepadStart(): Promise<GamepadStateView>;
@@ -226,6 +241,14 @@ export const IPC = {
   updateCheck: 'update:check',
   updateDownload: 'update:download',
   updateInstall: 'update:install',
+
+  emuState: 'emu:state',
+  emuCreate: 'emu:create',
+  emuLaunch: 'emu:launch',
+  emuQuit: 'emu:quit',
+  emuReboot: 'emu:reboot',
+  emuRemove: 'emu:remove',
+  evtEmuChanged: 'evt:emu-changed',
 
   gamepadState: 'gamepad:state',
   gamepadStart: 'gamepad:start',

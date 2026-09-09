@@ -13,6 +13,7 @@ import { VideoSink } from './video';
 import { openWirelessDialog } from './wireless';
 import { openCameraDialog } from './cameras';
 import { openMacroDialog } from './macros';
+import { openEmulatorDialog } from './emulators';
 import { openGamepadDialog } from './gamepad';
 
 declare global {
@@ -785,6 +786,9 @@ function wireControls(): void {
   el('btn-restart-adb').addEventListener('click', () => void restartAdb());
   el('btn-log').addEventListener('click', () => void api.logOpen());
   el('btn-wireless').addEventListener('click', () => openWireless());
+  el('btn-emulator').addEventListener('click', () =>
+    openEmulatorDialog(api, (level, message) => localLog(level, message)),
+  );
   el('btn-mirror').addEventListener('click', () => {
     // สลับเฉพาะเครื่องที่เลือก — เครื่องอื่นที่มิเรอร์อยู่ไม่ถูกแตะ
     if (selectedSerial && activeSerials().includes(selectedSerial)) void stopMirror(selectedSerial);

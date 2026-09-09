@@ -15,6 +15,7 @@ import {
   type UpdateStateView,
 } from '../shared/api';
 import type { MacroRunState } from '../shared/automation';
+import type { EmulatorManagerState } from '../shared/emulator';
 import type {
   AdbStatus,
   DeviceInfo,
@@ -62,6 +63,14 @@ const api: AndroidRemoteApi = {
   updateCheck: () => ipcRenderer.invoke(IPC.updateCheck),
   updateDownload: () => ipcRenderer.invoke(IPC.updateDownload) as Promise<void>,
   updateInstall: () => ipcRenderer.send(IPC.updateInstall),
+
+  emuState: () => ipcRenderer.invoke(IPC.emuState),
+  emuCreate: (brand, spec) => ipcRenderer.invoke(IPC.emuCreate, brand, spec),
+  emuLaunch: (brand, id) => ipcRenderer.invoke(IPC.emuLaunch, brand, id),
+  emuQuit: (brand, id) => ipcRenderer.invoke(IPC.emuQuit, brand, id),
+  emuReboot: (brand, id) => ipcRenderer.invoke(IPC.emuReboot, brand, id),
+  emuRemove: (brand, id) => ipcRenderer.invoke(IPC.emuRemove, brand, id),
+  onEmuChanged: (cb) => subscribe<EmulatorManagerState>(IPC.evtEmuChanged, cb),
 
   gamepadState: () => ipcRenderer.invoke(IPC.gamepadState),
   gamepadStart: () => ipcRenderer.invoke(IPC.gamepadStart),
