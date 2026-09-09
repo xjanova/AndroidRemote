@@ -38,6 +38,12 @@ public final class Controller implements Runnable {
 
     private final Options options;
     private final DesktopConnection connection;
+    /**
+     * เรียกเมื่อช่องควบคุมขาด — PC ปิดไปแล้ว
+     * ⚠ ถ้าไม่มีตัวนี้ server จะรู้ตัวว่า PC หายก็ต่อเมื่อเขียนเฟรมล้มเหลว
+     *    แต่จอนิ่ง = ไม่มีเฟรม = ไม่มีวันรู้ → โพรเซสค้างกินแบตตลอดกาล (เจอกับอีมูเลเตอร์จริง)
+     */
+    private final Runnable onDisconnect;
 
     private final MotionEvent.PointerProperties[] pointerProps =
             new MotionEvent.PointerProperties[MAX_POINTERS];
@@ -49,9 +55,10 @@ public final class Controller implements Runnable {
 
     private volatile boolean stopped;
 
-    public Controller(Options options, DesktopConnection connection) {
+    public Controller(Options options, DesktopConnection connection, Runnable onDisconnect) {
         this.options = options;
         this.connection = connection;
+        this.onDisconnect = onDisconnect;
         for (int i = 0; i < MAX_POINTERS; i++) {
             MotionEvent.PointerProperties p = new MotionEvent.PointerProperties();
             p.id = i;
@@ -79,8 +86,8 @@ public final class Controller implements Runnable {
             while (!stopped) {
                 int type = in.read();
                 if (type < 0) {
-                    Ln.i("ช่องควบคุมปิดจากฝั่ง PC");
-                    return;
+                    Ln.i("ช่องควบคุมปิดจากฝั่ง PC — จบ server");
+                    break;
                 }
                 handle(in, type);
             }
@@ -88,6 +95,10 @@ public final class Controller implements Runnable {
             if (!stopped) {
                 Ln.w("ช่องควบคุมขาด: " + e.getMessage());
             }
+        }
+        // ช่องควบคุมหาย = PC ไปแล้ว ไม่ว่าจะด้วยเหตุใด ต้องหยุดทั้ง server ไม่ใช่แค่เธรดนี้
+        if (!stopped) {
+            onDisconnect.run();
         }
     }
 

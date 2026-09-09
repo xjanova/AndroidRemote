@@ -14,6 +14,7 @@ import type { AdbClient } from '../adb/AdbClient';
 import type { KnownDevices } from '../store/KnownDevices';
 import { MdnsBrowser, serialFromInstance, type MdnsService } from './mdns';
 import { sweep } from './scan';
+import { isAlreadyNativeAvd, scanEmulatorPorts, runningEmulators, specFor } from './emulators';
 import type { DiscoveredDevice, DiscoveryKind, DiscoverySource, DiscoveryState } from '../../shared/types';
 
 /** ลืมสิ่งที่ไม่ได้ยินซ้ำนานเกินนี้ — เครื่องถูกปิดหรือออกจากวงไปแล้ว */
@@ -30,7 +31,12 @@ export class Discovery extends EventEmitter {
   private browser: MdnsBrowser | null = null;
   private found = new Map<string, DiscoveredDevice>();
   private adbPollTimer: NodeJS.Timeout | null = null;
+  private emulatorTimer: NodeJS.Timeout | null = null;
   private pruneTimer: NodeJS.Timeout | null = null;
+  /** พอร์ตอีมูเลเตอร์ที่สั่ง connect ไปแล้ว — ไม่ยิงซ้ำทุกรอบสแกน */
+  private emulatorConnected = new Set<number>();
+  /** ยี่ห้อที่เคยเตือนเรื่อง adb แถมแล้ว เตือนครั้งเดียวพอ */
+  private warnedBundledAdb = new Set<string>();
   private sweepAbort: { aborted: boolean } | null = null;
   private sweepProgress = { done: 0, total: 0 };
   /** เครื่องที่สั่งต่อไปแล้วในรอบนี้ — กันสั่งซ้ำรัวๆ ทุกครั้งที่ mDNS ได้ยินซ้ำ */
@@ -105,8 +111,67 @@ export class Discovery extends EventEmitter {
     void pollAdb();
     this.adbPollTimer = setInterval(() => void pollAdb(), 5000);
 
+    // อีมูเลเตอร์อยู่บน loopback — สแกนถูกมาก (ไม่กี่สิบพอร์ต ตอบทันที) ทำได้ถี่
+    void this.scanEmulators();
+    this.emulatorTimer = setInterval(() => void this.scanEmulators(), 8000);
+
     this.pruneTimer = setInterval(() => this.prune(), 15_000);
     this.emitChange();
+  }
+
+  /**
+   * หาอีมูเลเตอร์บนเครื่องนี้แล้วต่อให้เอง — ไม่ต้องจับคู่ เพราะเป็นเครื่องเราเอง
+   * ข้าม AVD ที่ adb เห็นเองอยู่แล้ว (emulator-5554) ไม่งั้นจะโผล่ซ้ำสองรายการ
+   */
+  private async scanEmulators(): Promise<void> {
+    let open;
+    try {
+      open = await scanEmulatorPorts();
+    } catch {
+      return;
+    }
+    if (open.length === 0) return;
+
+    const known = new Set(this.connectedSerials());
+    for (const e of open) {
+      const address = '127.0.0.1';
+      if (isAlreadyNativeAvd(e.port, known)) continue;
+
+      this.upsert({ kind: 'emulator', serial: null, address, port: e.port, source: 'emulator', name: e.label });
+
+      const hostPort = `${address}:${e.port}`;
+      if (known.has(hostPort) || this.emulatorConnected.has(e.port)) continue;
+      this.emulatorConnected.add(e.port);
+
+      try {
+        const message = await this.adb.connectTcp(hostPort);
+        const ok = /connected to/i.test(message);
+        this.log(ok ? 'info' : 'warn', `${e.label} ที่ ${hostPort}: ${message}`);
+        if (!ok) {
+          this.emulatorConnected.delete(e.port); // ให้ลองใหม่รอบหน้า
+          this.warnBundledAdb(e.brand);
+        }
+      } catch (err) {
+        this.emulatorConnected.delete(e.port);
+        this.log('warn', `ต่อ ${e.label} ที่ ${hostPort} ไม่ได้: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    this.emitChange();
+  }
+
+  /** เตือนเรื่อง adb คนละเวอร์ชันครั้งเดียวต่อยี่ห้อ — เป็นสาเหตุอันดับหนึ่งที่อีมูเลเตอร์ "ต่อแล้วหลุด" */
+  private warnBundledAdb(brand: string): void {
+    const spec = specFor(brand as never);
+    if (!spec?.bundledAdb || this.warnedBundledAdb.has(brand)) return;
+    this.warnedBundledAdb.add(brand);
+    const isRunning = runningEmulators().some((r) => r.brand === brand);
+    if (!isRunning) return;
+    this.log(
+      'warn',
+      `${spec.label} มี ${spec.bundledAdb} ของตัวเอง ถ้าเวอร์ชันไม่ตรงกับ adb ของเรา ` +
+        'จะสลับกันฆ่า server ที่ 5037 จนเครื่องหลุดเป็นระยะ — ก็อป platform-tools\\adb.exe ไปทับตัวที่มันแถมมา',
+    );
+    if (spec.hint) this.log('info', spec.hint);
   }
 
   private onMdns(s: MdnsService): void {
@@ -126,6 +191,8 @@ export class Discovery extends EventEmitter {
     address: string;
     port: number;
     source: DiscoverySource;
+    /** ชื่อที่รู้จากแหล่งค้นหา เช่นยี่ห้ออีมูเลเตอร์ */
+    name?: string;
   }): void {
     // รวมด้วย serial ถ้ามี เพราะเครื่องเดียวกันอาจโผล่มาหลายทางคนละพอร์ต
     const key = input.serial ? `${input.kind}:${input.serial}` : `${input.kind}:${input.address}:${input.port}`;
@@ -140,7 +207,7 @@ export class Discovery extends EventEmitter {
       serial: input.serial ?? existing?.serial ?? null,
       address: input.address,
       port: input.port,
-      name: input.serial ? this.known.get(input.serial)?.name : existing?.name,
+      name: input.name ?? (input.serial ? this.known.get(input.serial)?.name : existing?.name),
       sources: [...sources],
       known: input.serial ? this.known.has(input.serial) : false,
       connected: false,
@@ -309,9 +376,12 @@ export class Discovery extends EventEmitter {
     this.running = false;
     this.cancelSweep();
     if (this.adbPollTimer) clearInterval(this.adbPollTimer);
+    if (this.emulatorTimer) clearInterval(this.emulatorTimer);
     if (this.pruneTimer) clearInterval(this.pruneTimer);
     this.adbPollTimer = null;
+    this.emulatorTimer = null;
     this.pruneTimer = null;
+    this.emulatorConnected.clear();
     this.browser?.stop();
     this.browser = null;
     this.found.clear();

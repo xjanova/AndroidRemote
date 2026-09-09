@@ -31,6 +31,8 @@ export function parseGetprop(text: string): Map<string, string> {
 /** เดาช่องทางเชื่อมต่อจากหน้าตาของ serial */
 export function transportOf(serial: string): TransportKind {
   if (serial.startsWith('emulator-')) return 'emulator';
+  // อีมูเลเตอร์ยี่ห้ออื่น (BlueStacks/Nox/LDPlayer/…) ต่อผ่าน loopback — ไม่ใช่ไร้สายจริง
+  if (/^(127\.0\.0\.1|localhost|\[::1\]):\d+$/.test(serial)) return 'emulator';
   // ไร้สายคือ ip:port หรือ ชื่อโฮสต์:port (adb 11+ ใช้ชื่อ mdns ได้)
   if (/:\d+$/.test(serial)) return 'tcp';
   return 'usb';
@@ -86,18 +88,25 @@ export async function probePrivilege(adb: AdbClient, serial: string): Promise<Pr
   // มี su ไหม — `command -v` พกพาได้กว่า `which` บน toybox
   const hasSu = await adb.exec(serial, 'command -v su || ls /system/xbin/su /system/bin/su 2>/dev/null');
   if (hasSu.stdout.trim()) {
-    // มีไฟล์ su ไม่ได้แปลว่าใช้ได้ — ต้องลองจริง เพราะ Magisk/KernelSU
-    // จะเด้ง dialog ให้ผู้ใช้กดอนุญาต ถ้าไม่กดจะค้างแล้ว timeout
-    const test = await withTimeout(
-      adb.exec(serial, 'su -c id -u'),
-      6000,
-      { stdout: '', stderr: 'timeout', exitCode: -1 },
-    );
-    if (test.stdout.trim() === '0') {
-      return { tier: 'root', rootAvailableButDenied: false };
+    // มีไฟล์ su ไม่ได้แปลว่าใช้ได้ — ต้องลองจริง
+    //
+    // ⚠ su มีสอง syntax ที่เข้ากันไม่ได้ (เจอกับ AVD จริง):
+    //   Magisk/KernelSU:  su -c 'id -u'
+    //   AOSP (userdebug): su 0 id -u   — su -c จะ error "invalid uid/gid '-c'"
+    // ต้องลองทั้งคู่ ไม่งั้นเครื่อง AOSP ที่ให้ root ได้จะถูกมองว่า "ติดสิทธิ์" ผิดๆ
+    for (const cmd of ["su -c 'id -u'", 'su 0 id -u']) {
+      const test = await withTimeout(adb.exec(serial, cmd), 6000, { stdout: '', stderr: 'timeout', exitCode: -1 });
+      if (test.stdout.trim() === '0') {
+        return { tier: 'root', rootAvailableButDenied: false };
+      }
     }
-    // มี su แต่เรียกไม่ผ่าน = ผู้ใช้ยังไม่กดอนุญาต หรือกดปฏิเสธไปแล้ว
-    return { tier: 'shell', rootAvailableButDenied: true };
+
+    // มี su แต่ทั้งสอง syntax ไม่ผ่าน — แยกสองกรณี ไม่งั้นแนะนำผิด:
+    //   ถ้าลอง Magisk syntax แล้ว "ค้างจน timeout" = น่าจะเป็น Magisk รอผู้ใช้กดอนุญาต → denied จริง
+    //   ถ้าตอบ error syntax ทันที = AOSP su ที่ไม่ให้ root แก่ shell → ไม่ใช่ denied อย่าชวนไปเปิด Magisk
+    const magiskProbe = await withTimeout(adb.exec(serial, "su -c 'id -u'"), 1500, { stdout: '', stderr: 'timeout', exitCode: -1 });
+    const looksDenied = magiskProbe.stderr === 'timeout' || /permission denied|not allowed/i.test(magiskProbe.stdout);
+    return { tier: 'shell', rootAvailableButDenied: looksDenied };
   }
 
   // Shizuku ทำงานอยู่ไหม — มันรันเป็นโพรเซสด้วย uid 2000 ชื่อขึ้นต้นว่า shizuku

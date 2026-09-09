@@ -86,7 +86,11 @@ public final class Main {
                     + (connection.hasControl() ? " + ช่องควบคุม" : "") + ")");
 
             if (connection.hasControl()) {
-                controller = new Controller(options, connection);
+                // PC ปิดช่องควบคุม = จบทั้งโพรเซสทันที ไม่รอให้เฟรมถัดไปเขียนล้มเหลว
+                controller = new Controller(options, connection, () -> {
+                    Ln.i("PC ตัดการเชื่อมต่อ — ปิด server");
+                    System.exit(0);
+                });
                 controlThread = new Thread(controller, "androidremote-control");
                 controlThread.setDaemon(true);
                 controlThread.start();

@@ -170,10 +170,10 @@ export interface AdbStatus {
  *   pairing = กำลังเปิดหน้าจับคู่อยู่ตอนนี้ ต้องใส่รหัส 6 หลัก
  *   legacy  = เปิดพอร์ต 5555 ไว้แบบเก่า (adb tcpip) ต่อได้โดยไม่ต้องจับคู่
  */
-export type DiscoveryKind = 'connect' | 'pairing' | 'legacy';
+export type DiscoveryKind = 'connect' | 'pairing' | 'legacy' | 'emulator';
 
 /** ทางที่เจอ — บอกผู้ใช้ได้ว่าทำไมบางเครื่องขึ้นบางเครื่องไม่ขึ้น */
-export type DiscoverySource = 'mdns' | 'adb-mdns' | 'scan';
+export type DiscoverySource = 'mdns' | 'adb-mdns' | 'scan' | 'emulator';
 
 export interface DiscoveredDevice {
   /** กุญแจซ้ำไม่ได้ — ใช้รวมผลจากหลายทางที่ชี้เครื่องเดียวกัน */

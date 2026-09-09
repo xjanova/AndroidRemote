@@ -15,9 +15,11 @@ import fs from 'node:fs';
 import type { AdbClient } from '../adb/AdbClient';
 import {
   CHANNEL,
+  KEY_ACTION,
   PACKET_HEADER_SIZE,
   REPLY,
   VIDEO_HEADER_SIZE,
+  encodeKeycode,
   parsePacketHeader,
   parseVideoHeader,
   type VideoHeader,
@@ -167,6 +169,13 @@ export class ServerSession extends EventEmitter {
     } catch (err) {
       this.stop('เชื่อมต่อไม่สำเร็จ');
       throw err;
+    }
+
+    // ปลุกจอทันทีที่คุมได้ — จอที่หลับอยู่จะไม่ปล่อยเฟรมและไม่รับสัมผัส
+    // ผู้ใช้กด "เริ่มมิเรอร์" แล้วคาดว่าจะเห็นจอ ไม่ใช่จอดำนิ่ง (KEYCODE_WAKEUP = 224)
+    if (this.hasControl && !this.options.screenOffOnStart) {
+      this.send(encodeKeycode(KEY_ACTION.DOWN, 224));
+      this.send(encodeKeycode(KEY_ACTION.UP, 224));
     }
   }
 
@@ -376,6 +385,8 @@ export class ServerSession extends EventEmitter {
     this.controlSocket?.destroy();
     this.tcpServer?.close();
     void this.adb.reverseRemove(this.serial, `localabstract:${SOCKET_NAME}`).catch(() => {});
+    // เผื่อ server ไม่ทันเห็นว่าซ็อกเก็ตปิด (จอนิ่ง = ไม่มีเฟรมให้เขียนล้มเหลว) — ฆ่าให้แน่ใจ
+    void this.adb.exec(this.serial, `pkill -f ${MAIN_CLASS} >/dev/null 2>&1 || true`).catch(() => {});
 
     this.emit('closed', reason);
   }

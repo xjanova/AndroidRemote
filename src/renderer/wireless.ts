@@ -14,12 +14,14 @@ const KIND_CHIP: Record<DiscoveredDevice['kind'], { cls: string; label: string }
   pairing: { cls: 'chip--pairing', label: 'กำลังจับคู่' },
   connect: { cls: 'chip--ready', label: 'พร้อมต่อ' },
   legacy: { cls: 'chip--legacy', label: 'พอร์ตเก่า' },
+  emulator: { cls: 'chip--known', label: 'อีมูเลเตอร์' },
 };
 
 const SOURCE_LABEL: Record<string, string> = {
   mdns: 'mDNS',
   'adb-mdns': 'adb',
   scan: 'กวาดพอร์ต',
+  emulator: 'เครื่องนี้',
 };
 
 function esc(s: unknown): string {

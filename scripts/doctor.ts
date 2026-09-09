@@ -85,7 +85,10 @@ async function main(): Promise<void> {
     kv('IP ของมือถือ (wlan0)', ipLines.join(' ').trim() || '(ไม่ได้ต่อ Wi-Fi)');
     const pcSubnet = localSubnets()[0]?.self.split('.').slice(0, 3).join('.');
     const phoneIp = /inet (\d+\.\d+\.\d+)\./.exec(ipLines.join(' '))?.[1];
-    if (pcSubnet && phoneIp && pcSubnet !== phoneIp) {
+    const isEmulator = /^emulator-|^127\.0\.0\.1:/.test(d.serial);
+    if (isEmulator) {
+      out('  ℹ อีมูเลเตอร์อยู่หลัง NAT ของตัวเอง (10.0.2.x) — ต่อผ่าน loopback ไม่ใช่วง LAN ข้ามได้');
+    } else if (pcSubnet && phoneIp && pcSubnet !== phoneIp) {
       out(`  ❌ มือถืออยู่วง ${phoneIp}.x แต่ PC อยู่วง ${pcSubnet}.x — คนละวง หากันไม่เจอแน่นอน`);
     }
 
@@ -103,8 +106,17 @@ async function main(): Promise<void> {
         d.serial,
         'CLASSPATH=/data/local/tmp/androidremote-server.jar app_process / com.androidremote.server.Main mode=camera-list 2>&1',
       );
-      const ok = list.stdout.includes('"cameras"');
+      const jsonLine = list.stdout.split('\n').map((l) => l.trim()).find((l) => l.startsWith('{'));
+      const ok = Boolean(jsonLine);
       kv('รัน server (โหมด list)', ok ? '✅ รันได้และตอบ JSON' : `❌ rc=${list.exitCode}`);
+      if (jsonLine) {
+        // JSON ที่มี error ข้างในก็ยัง "ตอบ" — ต้องดูเนื้อในด้วยว่ากล้องใช้ได้จริงไหม
+        const parsed = JSON.parse(jsonLine) as { error?: string; cameras?: unknown[] };
+        if (parsed.error) out(`  ⚠ กล้อง: ${parsed.error}`);
+        else kv('กล้องที่เห็น', `${parsed.cameras?.length ?? 0} ตัว`);
+      }
+      const arLines = list.stdout.split('\n').filter((l) => /\[AR\] [WE]/.test(l));
+      for (const l of arLines) out(`      ${l.trim()}`);
       if (!ok) for (const l of list.stdout.split('\n').slice(0, 15)) out(`      ${l}`);
     }
   }

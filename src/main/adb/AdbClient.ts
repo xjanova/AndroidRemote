@@ -166,7 +166,9 @@ export class AdbClient {
    */
   async exec(serial: string, command: string): Promise<ShellResult> {
     // ห่อคำสั่งเพื่อดึง exit code กลับมา — exec: ไม่ส่งให้เอง
-    const wrapped = `{ ${command} ; } 2>&1 ; echo "${RC_MARKER}$?"`;
+    // ต้องเป็น subshell ( ) ไม่ใช่ brace group { } — `exit` ข้างใน brace group
+    // ฆ่าทั้งเชลล์ก่อนถึงบรรทัด echo ทำให้ marker หายแล้วได้ -1 (เจอกับอีมูเลเตอร์จริง)
+    const wrapped = `( ${command} ) 2>&1 ; echo "${RC_MARKER}$?"`;
     const raw = await this.execRaw(serial, wrapped);
     const text = raw.toString('utf8');
 
