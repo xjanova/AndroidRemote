@@ -12,6 +12,7 @@ import type { AdbStatus } from '../shared/types';
 import { VideoSink } from './video';
 import { openWirelessDialog } from './wireless';
 import { openCameraDialog } from './cameras';
+import { openMacroDialog } from './macros';
 import { openGamepadDialog } from './gamepad';
 
 declare global {
@@ -64,22 +65,33 @@ interface StreamView {
  *    เพราะ innerHTML จะฆ่า element เดิมทิ้ง แล้ว VideoSink จะวาดลงแคนวาสผี
  *    ที่ไม่ได้อยู่ในหน้าจอแล้ว — อาการคือภาพดำสนิททั้งที่ fps ขึ้นปกติ
  */
-const streams = new Map<number, StreamView>();
+/** คีย์ = "serial:streamId" — หลายเครื่องพร้อมกัน แต่ละเครื่องมีได้หลายสตรีม (กล้อง) */
+const streams = new Map<string, StreamView>();
 let mirrorMode: 'screen' | 'camera' = 'screen';
 let mirrorStarting = false;
+
+function streamKey(serial: string, streamId: number): string {
+  return `${serial}:${streamId}`;
+}
 
 function isMirroring(): boolean {
   return streams.size > 0;
 }
 
-/** สตรีมที่รับการสัมผัสได้ — มีเฉพาะโหมดมิเรอร์จอเท่านั้น */
-function touchableStream(): StreamView | null {
-  return mirrorMode === 'screen' ? (streams.get(0) ?? null) : null;
+/** เครื่องที่มีเซสชันอยู่ตอนนี้ */
+function activeSerials(): string[] {
+  return [...new Set([...streams.values()].map((v) => v.header.serial))];
+}
+
+/** สัมผัสได้เฉพาะสตรีมจอ (streamId 0) ในโหมดมิเรอร์ — กล้องไม่รับสัมผัส */
+function isTouchable(view: StreamView): boolean {
+  return mirrorMode === 'screen' && view.header.streamId === 0;
 }
 
 function createStreamView(header: MirrorHeader): StreamView {
   const canvas = document.createElement('canvas');
   canvas.dataset.stream = String(header.streamId);
+  canvas.dataset.serial = header.serial;
   canvas.style.cssText =
     'max-width:100%;max-height:100%;object-fit:contain;border:1px solid #0b0d12;' +
     'box-shadow:0 0 0 1px rgba(255,255,255,.09),0 8px 22px rgba(0,0,0,.55);' +
@@ -100,7 +112,7 @@ function createStreamView(header: MirrorHeader): StreamView {
     }),
   };
 
-  if (mirrorMode === 'screen') wireCanvasTouch(canvas);
+  if (isTouchable(view)) wireCanvasTouch(canvas, header.serial);
   return view;
 }
 
@@ -303,8 +315,10 @@ function renderStage(): void {
 
   // มิเรอร์/กล้องอยู่ → วาดโครงแล้วย้ายแคนวาสตัวเดิมเข้าไป ไม่สร้างใหม่
   if (isMirroring()) {
-    const ordered = [...streams.values()].sort((a, b) => a.header.streamId - b.header.streamId);
-    // กล้องหลายตัวจัดเป็นตาราง — ตัวเดียวกินเต็มพื้นที่
+    const ordered = [...streams.values()].sort(
+      (a, b) => a.header.serial.localeCompare(b.header.serial) || a.header.streamId - b.header.streamId,
+    );
+    // หลายเครื่อง/หลายกล้องจัดเป็นตาราง — ตัวเดียวกินเต็มพื้นที่
     const cols = ordered.length <= 1 ? 1 : ordered.length <= 4 ? 2 : 3;
 
     box.innerHTML = html(`
@@ -328,7 +342,8 @@ function renderStage(): void {
                </div>`
             : ''
         }
-        <div class="navb" style="width:auto;padding:0 10px" id="nav-stop">หยุด</div>
+        <div class="navb" style="width:auto;padding:0 10px" id="nav-stop">หยุดเครื่องนี้</div>
+        ${activeSerials().length > 1 ? `<div class="navb" style="width:auto;padding:0 10px" id="nav-stop-all">หยุดทั้งหมด (${activeSerials().length})</div>` : ''}
         <div id="mirror-stats" style="margin-left:6px;color:#8b95a8;font-size:11px"></div>
       </div>
     `);
@@ -341,8 +356,11 @@ function renderStage(): void {
       cell.appendChild(view.canvas);
       if (ordered.length > 1) {
         const label = document.createElement('div');
-        label.style.cssText = 'font:11px Tahoma;color:#8b95a8';
-        label.textContent = view.header.deviceName;
+        const isSel = view.header.serial === selectedSerial;
+        // เครื่องที่เลือกอยู่คือเป้าของปุ่มด้านล่าง ต้องมองออกทันทีว่าตัวไหน
+        label.style.cssText = `font:11px Tahoma;color:${isSel ? '#f0c765' : '#8b95a8'};${isSel ? 'font-weight:bold' : ''}`;
+        const name = devices.find((d) => d.serial === view.header.serial)?.model ?? view.header.deviceName;
+        label.textContent = isSel ? `▶ ${name}` : name;
         cell.appendChild(label);
       }
       wrap.appendChild(cell);
@@ -353,9 +371,13 @@ function renderStage(): void {
       el('nav-back').addEventListener('click', () => tapKey(4));
       el('nav-home').addEventListener('click', () => tapKey(3));
       el('nav-recents').addEventListener('click', () => tapKey(187));
-      el('nav-screen-off').addEventListener('click', () => api.sendScreenPower(false));
+      el('nav-screen-off').addEventListener('click', () => {
+        if (selectedSerial) api.sendScreenPower(selectedSerial, false);
+      });
     }
-    el('nav-stop').addEventListener('click', () => void stopMirror());
+    // หยุดเฉพาะเครื่องที่เลือก — คุมหลายเครื่องอยู่ไม่ควรดับทั้งหมดเพราะกดปุ่มเดียว
+    el('nav-stop').addEventListener('click', () => void stopMirror(selectedSerial ?? undefined));
+    document.getElementById('nav-stop-all')?.addEventListener('click', () => void stopMirror());
     return;
   }
 
@@ -622,10 +644,11 @@ async function trialShell(): Promise<void> {
 
 // ─────────────────────────── มิเรอร์ ───────────────────────────
 
-/** ค่าเดียวกับ KeyEvent ของแอนดรอยด์: 3=HOME 4=BACK 187=APP_SWITCH */
-function tapKey(keycode: number): void {
-  api.sendKey(0, keycode); // DOWN
-  api.sendKey(1, keycode); // UP
+/** ค่าเดียวกับ KeyEvent ของแอนดรอยด์: 3=HOME 4=BACK 187=APP_SWITCH — ยิงไปเครื่องที่เลือกอยู่ */
+function tapKey(keycode: number, serial = selectedSerial): void {
+  if (!serial) return;
+  api.sendKey(serial, 0, keycode); // DOWN
+  api.sendKey(serial, 1, keycode); // UP
 }
 
 async function startMirror(mode: 'screen' | 'camera' = 'screen', cameraIds?: string[]): Promise<void> {
@@ -659,14 +682,18 @@ async function startMirror(mode: 'screen' | 'camera' = 'screen', cameraIds?: str
   }
 }
 
-function clearStreams(): void {
-  for (const view of streams.values()) view.sink.stop();
-  streams.clear();
+/** ล้างสตรีมของเครื่องเดียว หรือทุกเครื่องถ้าไม่ระบุ */
+function clearStreams(serial?: string): void {
+  for (const [key, view] of streams) {
+    if (serial && view.header.serial !== serial) continue;
+    view.sink.stop();
+    streams.delete(key);
+  }
 }
 
-async function stopMirror(): Promise<void> {
-  await api.stopMirror();
-  clearStreams();
+async function stopMirror(serial?: string): Promise<void> {
+  await api.stopMirror(serial);
+  clearStreams(serial);
   renderAll();
 }
 
@@ -674,7 +701,7 @@ async function stopMirror(): Promise<void> {
  * ส่งการสัมผัสจากแคนวาสไปเครื่อง
  * ต้องแปลงพิกัดหน้าจอ → พิกัดในภาพก่อนเสมอ เพราะแคนวาสถูก CSS ย่อให้พอดีกรอบ
  */
-function wireCanvasTouch(canvas: HTMLCanvasElement): void {
+function wireCanvasTouch(canvas: HTMLCanvasElement, serial: string): void {
   const point = (e: PointerEvent): { x: number; y: number } => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -686,9 +713,10 @@ function wireCanvasTouch(canvas: HTMLCanvasElement): void {
   };
 
   const send = (action: number, e: PointerEvent): void => {
-    if (!touchableStream()) return;
+    if (!streams.has(streamKey(serial, 0))) return;
     const p = point(e);
     api.sendTouch({
+      serial,
       action,
       pointerId: e.pointerId,
       x: p.x,
@@ -700,6 +728,14 @@ function wireCanvasTouch(canvas: HTMLCanvasElement): void {
   };
 
   canvas.addEventListener('pointerdown', (e) => {
+    // แตะจอไหน = เลือกเครื่องนั้น ปุ่มด้านล่างจะได้ยิงไปถูกเครื่อง
+    if (selectedSerial !== serial) {
+      selectedSerial = serial;
+      renderDeviceList();
+      renderDeviceDetail();
+      renderCapabilities();
+      renderStatusBar();
+    }
     // จับตัวชี้ไว้กับแคนวาส ไม่งั้นลากออกนอกกรอบแล้วจะไม่ได้ pointerup เลย
     // ผลคือนิ้วค้างบนเครื่องตลอดกาล
     canvas.setPointerCapture(e.pointerId);
@@ -716,7 +752,7 @@ function wireCanvasTouch(canvas: HTMLCanvasElement): void {
   canvas.addEventListener('pointercancel', (e) => send(3, e));
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    tapKey(4); // คลิกขวา = ปุ่มย้อนกลับ ตามที่คนคุ้นจาก scrcpy
+    tapKey(4, serial); // คลิกขวา = ปุ่มย้อนกลับ ตามที่คนคุ้นจาก scrcpy
   });
 }
 
@@ -750,10 +786,14 @@ function wireControls(): void {
   el('btn-log').addEventListener('click', () => void api.logOpen());
   el('btn-wireless').addEventListener('click', () => openWireless());
   el('btn-mirror').addEventListener('click', () => {
-    if (isMirroring()) void stopMirror();
+    // สลับเฉพาะเครื่องที่เลือก — เครื่องอื่นที่มิเรอร์อยู่ไม่ถูกแตะ
+    if (selectedSerial && activeSerials().includes(selectedSerial)) void stopMirror(selectedSerial);
     else void startMirror('screen');
   });
   el('btn-camera').addEventListener('click', () => openCameras());
+  el('btn-macro').addEventListener('click', () =>
+    openMacroDialog(api, devices, activeSerials(), selectedSerial, (level, message) => localLog(level, message)),
+  );
   el('btn-gamepad').addEventListener('click', () =>
     openGamepadDialog(api, (level, message) => localLog(level, message)),
   );
@@ -797,10 +837,11 @@ async function boot(): Promise<void> {
 
   api.onMirrorHeader((header) => {
     // สตรีมเดิมมาซ้ำ (เช่นจอหมุนแล้ว server ส่งหัวใหม่) → ใช้ตัวเดิม อย่าสร้างแคนวาสใหม่
-    const existing = streams.get(header.streamId);
+    const key = streamKey(header.serial, header.streamId);
+    const existing = streams.get(key);
     const view = existing ?? createStreamView(header);
     view.header = header;
-    streams.set(header.streamId, view);
+    streams.set(key, view);
     view.sink.start(header.width, header.height, header.codec);
 
     localLog(
@@ -812,13 +853,14 @@ async function boot(): Promise<void> {
   });
 
   api.onMirrorPacket((packet) => {
-    streams.get(packet.streamId)?.sink.push(packet);
+    streams.get(streamKey(packet.serial, packet.streamId))?.sink.push(packet);
   });
 
-  api.onMirrorClosed((reason) => {
-    if (!isMirroring()) return;
-    clearStreams();
-    localLog('info', `หยุดแล้ว: ${reason}`);
+  api.onMirrorClosed(({ serial, reason }) => {
+    if (!activeSerials().includes(serial)) return;
+    clearStreams(serial);
+    const name = devices.find((d) => d.serial === serial)?.model ?? serial;
+    localLog('info', `${name} หยุดแล้ว: ${reason}`);
     renderAll();
   });
 

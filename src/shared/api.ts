@@ -4,6 +4,7 @@
  */
 
 import type { AdbStatus, DeviceInfo, DiscoveryState, GamepadStateView, ShellResult } from './types';
+import type { MacroRunState, MacroView, ScheduleView, UiNodeView, UiSelector } from './automation';
 
 /** เครื่องที่เคยจับคู่ไว้ — โครงเดียวกับที่ main เก็บลงไฟล์ */
 export interface KnownDeviceView {
@@ -45,6 +46,8 @@ export interface MirrorOptions {
 }
 
 export interface MirrorHeader {
+  /** เครื่องที่สตรีมนี้มาจาก — คุมหลายเครื่องพร้อมกันได้ ต้องระบุเสมอ */
+  serial: string;
   /** 0 สำหรับมิเรอร์จอ · 0..N-1 สำหรับกล้องแต่ละตัว */
   streamId: number;
   deviceName: string;
@@ -76,6 +79,7 @@ export interface CameraListView {
  * data เป็น Uint8Array เพราะ Buffer ข้าม contextBridge มาเป็น Uint8Array อยู่ดี
  */
 export interface MirrorPacket {
+  serial: string;
   streamId: number;
   config: boolean;
   keyFrame: boolean;
@@ -85,6 +89,7 @@ export interface MirrorPacket {
 }
 
 export interface TouchInput {
+  serial: string;
   action: number;
   pointerId: number;
   x: number;
@@ -128,11 +133,32 @@ export interface AndroidRemoteApi {
 
   /** ─── มิเรอร์ / กล้อง ─── */
   listCameras(serial: string): Promise<CameraListView>;
+  /** เริ่มเซสชันของเครื่องนี้ — เครื่องอื่นที่เปิดอยู่ไม่ถูกปิด คุมพร้อมกันได้ */
   startMirror(serial: string, options?: MirrorOptions): Promise<WirelessResult>;
-  stopMirror(): Promise<void>;
+  /** หยุดเฉพาะเครื่องนี้ · ไม่ระบุ = หยุดทุกเครื่อง */
+  stopMirror(serial?: string): Promise<void>;
+  activeSessions(): Promise<string[]>;
   sendTouch(input: TouchInput): void;
-  sendKey(action: number, keycode: number): void;
-  sendScreenPower(on: boolean): void;
+  sendKey(serial: string, action: number, keycode: number): void;
+  sendScreenPower(serial: string, on: boolean): void;
+
+  /** ─── มาโครและตั้งเวลา ─── */
+  macroList(): Promise<MacroView[]>;
+  macroRecordStart(serial: string, name: string): Promise<void>;
+  macroRecordStop(): Promise<MacroView | null>;
+  macroRecordingState(): Promise<{ recording: boolean; serial?: string; steps: number }>;
+  macroPlay(macroId: string, serials: string[], loops?: number): Promise<{ ok: boolean; message: string }>;
+  macroStop(): Promise<void>;
+  macroDelete(macroId: string): Promise<void>;
+  macroRename(macroId: string, name: string): Promise<void>;
+  /** เพิ่มขั้นตอนแบบหา element ด้วยมือ (แทนพิกัดดิบ) เข้ามาโคร */
+  macroAddFindTap(macroId: string, selector: UiSelector): Promise<void>;
+  /** อ่านโครงหน้าจอปัจจุบันของเครื่อง เพื่อเลือก element ใส่มาโคร */
+  uiDump(serial: string): Promise<UiNodeView[]>;
+  scheduleList(): Promise<ScheduleView[]>;
+  scheduleSave(entry: ScheduleView): Promise<void>;
+  scheduleDelete(id: string): Promise<void>;
+  onMacroState(cb: (state: MacroRunState) => void): () => void;
 
   /** ─── อัปเดตตัวแอป ─── */
   updateState(): Promise<UpdateStateView>;
@@ -163,7 +189,7 @@ export interface AndroidRemoteApi {
   onUpdateChanged(cb: (state: UpdateStateView) => void): () => void;
   onMirrorHeader(cb: (header: MirrorHeader) => void): () => void;
   onMirrorPacket(cb: (packet: MirrorPacket) => void): () => void;
-  onMirrorClosed(cb: (reason: string) => void): () => void;
+  onMirrorClosed(cb: (info: { serial: string; reason: string }) => void): () => void;
 }
 
 export interface LogEntry {
@@ -210,6 +236,22 @@ export const IPC = {
   listCameras: 'camera:list',
   mirrorStart: 'mirror:start',
   mirrorStop: 'mirror:stop',
+  mirrorSessions: 'mirror:sessions',
+
+  macroList: 'macro:list',
+  macroRecordStart: 'macro:record-start',
+  macroRecordStop: 'macro:record-stop',
+  macroRecordingState: 'macro:recording-state',
+  macroPlay: 'macro:play',
+  macroStop: 'macro:stop',
+  macroDelete: 'macro:delete',
+  macroRename: 'macro:rename',
+  macroAddFindTap: 'macro:add-find-tap',
+  uiDump: 'ui:dump',
+  scheduleList: 'schedule:list',
+  scheduleSave: 'schedule:save',
+  scheduleDelete: 'schedule:delete',
+  evtMacroState: 'evt:macro-state',
   mirrorTouch: 'mirror:touch',
   mirrorKey: 'mirror:key',
   mirrorScreenPower: 'mirror:screen-power',

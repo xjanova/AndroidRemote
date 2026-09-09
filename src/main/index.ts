@@ -13,6 +13,10 @@ import { GamepadServer } from './gamepad/GamepadServer';
 import { KeyInjector } from './gamepad/KeyInjector';
 import { AutoUpdate } from './update/AutoUpdate';
 import { FileLog } from './log';
+import { MacroPlayer, MacroRecorder, MacroStore } from './automation/Macros';
+import { Scheduler } from './automation/Scheduler';
+import { dumpUi } from './automation/UiDump';
+import type { ScheduleView, UiSelector } from '../shared/automation';
 import {
   SCREEN_POWER,
   encodeKeycode,
@@ -28,8 +32,12 @@ let adb: AdbClient;
 let registry: DeviceRegistry;
 let known: KnownDevices;
 let discovery: Discovery;
-/** เซสชันมิเรอร์ที่เปิดอยู่ — ทีละหนึ่งเครื่องเท่านั้นในตอนนี้ */
-let session: ServerSession | null = null;
+/** เซสชันที่เปิดอยู่ — หนึ่งเครื่องต่อหนึ่งเซสชัน คุมพร้อมกันได้หลายเครื่อง */
+const sessions = new Map<string, ServerSession>();
+let macroStore: MacroStore;
+let recorder: MacroRecorder;
+let player: MacroPlayer;
+let scheduler: Scheduler;
 let gamepad: GamepadServer;
 let injector: KeyInjector;
 let updater: AutoUpdate;
@@ -304,7 +312,8 @@ function registerIpc(): void {
   });
 
   ipcMain.handle(IPC.mirrorStart, async (_e, serial: string, options: MirrorOptions = {}) => {
-    stopSession('เริ่มเซสชันใหม่');
+    // เครื่องเดิมที่เปิดอยู่ให้ปิดก่อนเปิดใหม่ เครื่องอื่นไม่ยุ่ง — คุมหลายเครื่องพร้อมกัน
+    stopSession(serial, 'เริ่มเซสชันใหม่');
 
     const device = registry.get(serial);
     if (!device) return { ok: false, message: 'ไม่พบอุปกรณ์นี้แล้ว' };
@@ -315,14 +324,16 @@ function registerIpc(): void {
     }
 
     const s = new ServerSession(adb, serial, options);
-    session = s;
+    sessions.set(serial, s);
+    const tag = device.model ?? serial;
 
-    s.on('log', (line: string) => pushLog(/\[AR\] E /.test(line) ? 'error' : 'info', 'มิเรอร์', line));
+    s.on('log', (line: string) => pushLog(/\[AR\] E /.test(line) ? 'error' : 'info', tag, line));
     s.on('header', (h) => {
-      mainWindow?.webContents.send(IPC.evtMirrorHeader, { ...h, hasControl: s.hasControl });
+      mainWindow?.webContents.send(IPC.evtMirrorHeader, { ...h, serial, hasControl: s.hasControl });
     });
     s.on('packet', (p) => {
       mainWindow?.webContents.send(IPC.evtMirrorPacket, {
+        serial,
         streamId: p.streamId,
         config: p.config,
         keyFrame: p.keyFrame,
@@ -332,11 +343,11 @@ function registerIpc(): void {
         data: p.data,
       });
     });
-    s.on('shellResult', (r) => pushLog('info', 'มิเรอร์', `คำสั่งจบ (exit ${r.exitCode}): ${r.output.trim()}`));
+    s.on('shellResult', (r) => pushLog('info', tag, `คำสั่งจบ (exit ${r.exitCode}): ${r.output.trim()}`));
     s.on('closed', (reason: string) => {
-      if (session === s) session = null;
-      mainWindow?.webContents.send(IPC.evtMirrorClosed, reason);
-      pushLog('info', 'มิเรอร์', `เซสชันปิด: ${reason}`);
+      if (sessions.get(serial) === s) sessions.delete(serial);
+      mainWindow?.webContents.send(IPC.evtMirrorClosed, { serial, reason });
+      pushLog('info', tag, `เซสชันปิด: ${reason}`);
     });
 
     try {
@@ -344,18 +355,23 @@ function registerIpc(): void {
       return { ok: true, message: 'เริ่มมิเรอร์แล้ว' };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      pushLog('error', 'มิเรอร์', message);
-      if (session === s) session = null;
+      pushLog('error', tag, message);
+      if (sessions.get(serial) === s) sessions.delete(serial);
       return { ok: false, message };
     }
   });
 
-  ipcMain.handle(IPC.mirrorStop, () => {
-    stopSession('ผู้ใช้สั่งหยุด');
+  ipcMain.handle(IPC.mirrorStop, (_e, serial?: string) => {
+    if (serial) stopSession(serial, 'ผู้ใช้สั่งหยุด');
+    else stopAllSessions('ผู้ใช้สั่งหยุดทั้งหมด');
   });
 
+  ipcMain.handle(IPC.mirrorSessions, () => [...sessions.keys()]);
+
   ipcMain.on(IPC.mirrorTouch, (_e, input: TouchInput) => {
-    session?.send(
+    // ตัวบันทึกมาโครดักตรงนี้ — ทุกอย่างที่ผู้ใช้ทำผ่านแอปไหลผ่านจุดเดียว
+    recorder.onTouch(input);
+    sessions.get(input.serial)?.send(
       encodeTouch({
         action: input.action,
         pointerId: BigInt(input.pointerId),
@@ -368,13 +384,60 @@ function registerIpc(): void {
     );
   });
 
-  ipcMain.on(IPC.mirrorKey, (_e, action: number, keycode: number) => {
-    session?.send(encodeKeycode(action, keycode));
+  ipcMain.on(IPC.mirrorKey, (_e, serial: string, action: number, keycode: number) => {
+    recorder.onKey(serial, action, keycode);
+    sessions.get(serial)?.send(encodeKeycode(action, keycode));
   });
 
-  ipcMain.on(IPC.mirrorScreenPower, (_e, on: boolean) => {
-    session?.send(encodeScreenPowerMode(on ? SCREEN_POWER.NORMAL : SCREEN_POWER.OFF));
+  ipcMain.on(IPC.mirrorScreenPower, (_e, serial: string, on: boolean) => {
+    sessions.get(serial)?.send(encodeScreenPowerMode(on ? SCREEN_POWER.NORMAL : SCREEN_POWER.OFF));
   });
+
+  // ─────────────────────────── มาโครและตั้งเวลา ───────────────────────────
+
+  ipcMain.handle(IPC.macroList, () => macroStore.list());
+  ipcMain.handle(IPC.macroRecordingState, () => {
+    const a = recorder.active;
+    return a ? { recording: true, serial: a.serial, steps: a.steps } : { recording: false, steps: 0 };
+  });
+  ipcMain.handle(IPC.macroRecordStart, (_e, serial: string, name: string) => {
+    const size = screenSizeOf(serial);
+    if (!size) throw new Error('ต้องเปิดเซสชันของเครื่องนี้ก่อนบันทึก');
+    recorder.start(serial, name, size);
+    pushLog('info', 'มาโคร', `เริ่มบันทึกจาก ${registry.get(serial)?.model ?? serial}`);
+  });
+  ipcMain.handle(IPC.macroRecordStop, () => {
+    const m = recorder.stop();
+    if (m && m.steps.length > 0) {
+      macroStore.put(m);
+      pushLog('info', 'มาโคร', `บันทึก "${m.name}" ${m.steps.length} ขั้นตอน`);
+      return m;
+    }
+    if (m) pushLog('warn', 'มาโคร', 'ไม่ได้บันทึก — ไม่มีขั้นตอนเลย');
+    return null;
+  });
+  ipcMain.handle(IPC.macroPlay, async (_e, macroId: string, serials: string[], loops = 1) => {
+    const m = macroStore.get(macroId);
+    if (!m) return { ok: false, message: 'ไม่พบมาโครนี้' };
+    return player.play(m, serials, Math.max(1, loops));
+  });
+  ipcMain.handle(IPC.macroStop, () => player.stop());
+  ipcMain.handle(IPC.macroDelete, (_e, id: string) => macroStore.delete(id));
+  ipcMain.handle(IPC.macroRename, (_e, id: string, name: string) => {
+    const m = macroStore.get(id);
+    if (m) macroStore.put({ ...m, name: name.trim() || m.name });
+  });
+  ipcMain.handle(IPC.macroAddFindTap, (_e, id: string, selector: UiSelector) => {
+    const m = macroStore.get(id);
+    if (!m) return;
+    const last = m.steps[m.steps.length - 1];
+    m.steps.push({ t: 'find_tap', selector, timeoutMs: 5000, atMs: (last?.atMs ?? 0) + 800 });
+    macroStore.put(m);
+  });
+  ipcMain.handle(IPC.uiDump, (_e, serial: string) => dumpUi(adb, serial));
+  ipcMain.handle(IPC.scheduleList, () => scheduler.list());
+  ipcMain.handle(IPC.scheduleSave, (_e, entry: ScheduleView) => scheduler.put(entry));
+  ipcMain.handle(IPC.scheduleDelete, (_e, id: string) => scheduler.delete(id));
 
   ipcMain.on(IPC.windowMinimize, () => mainWindow?.minimize());
   ipcMain.on(IPC.windowToggleMaximize, () => {
@@ -421,10 +484,52 @@ function emitGamepadState(): void {
   mainWindow?.webContents.send(IPC.evtGamepadChanged, gamepadState());
 }
 
-function stopSession(reason: string): void {
-  const s = session;
-  session = null;
+function stopSession(serial: string, reason: string): void {
+  const s = sessions.get(serial);
+  sessions.delete(serial);
   s?.stop(reason);
+}
+
+function stopAllSessions(reason: string): void {
+  for (const serial of [...sessions.keys()]) stopSession(serial, reason);
+}
+
+/** ขนาดจอจริงของเครื่องที่มีเซสชันอยู่ — ตัวเล่นมาโครใช้แปลงสัดส่วนเป็นพิกเซล */
+function screenSizeOf(serial: string): { width: number; height: number } | null {
+  if (!sessions.has(serial)) return null;
+  const d = registry.get(serial);
+  if (!d?.screenWidth || !d.screenHeight) return null;
+  return { width: d.screenWidth, height: d.screenHeight };
+}
+
+/**
+ * ตัวรันที่ตัวตั้งเวลาเรียก: เปิดเซสชันแบบประหยัดให้เครื่องที่ยังไม่มี → เล่น → ปิดเฉพาะที่เราเปิดเอง
+ * ใช้ภาพเล็ก (320px) เพราะไม่มีใครดู แค่ต้องการช่องควบคุม
+ */
+async function runScheduled(entry: ScheduleView): Promise<string> {
+  const m = macroStore.get(entry.macroId);
+  if (!m) return 'ไม่พบมาโคร';
+  const opened: string[] = [];
+  for (const serial of entry.serials) {
+    if (sessions.has(serial)) continue;
+    const d = registry.get(serial);
+    if (!d || d.state !== 'device') continue;
+    const s = new ServerSession(adb, serial, { mode: 'screen', maxSize: 320, maxFps: 10, bitRate: 500_000 });
+    sessions.set(serial, s);
+    s.on('closed', () => {
+      if (sessions.get(serial) === s) sessions.delete(serial);
+    });
+    try {
+      await s.start();
+      opened.push(serial);
+    } catch (err) {
+      pushLog('warn', 'ตั้งเวลา', `${d.model ?? serial}: เปิดเซสชันไม่ได้ (${err instanceof Error ? err.message : err})`);
+      sessions.delete(serial);
+    }
+  }
+  const result = await player.play(m, entry.serials, entry.loops);
+  for (const serial of opened) stopSession(serial, 'งานตั้งเวลาเสร็จ');
+  return result.message;
 }
 
 function createRegistry(): DeviceRegistry {
@@ -500,6 +605,21 @@ if (!gotLock) {
     // ต้องเรียกทุกครั้งที่เปิด ไม่ใช่แค่ตอนติดตั้ง — สายอัปเดตอัตโนมัติไม่สร้างไอคอนให้
     AutoUpdate.repairDesktopShortcut((level, message) => pushLog(level, 'อัปเดต', message));
 
+    macroStore = new MacroStore(app.getPath('userData'));
+    recorder = new MacroRecorder();
+    player = new MacroPlayer(
+      {
+        adb,
+        send: (serial, msg) => sessions.get(serial)?.send(msg) ?? false,
+        screenSize: screenSizeOf,
+      },
+      (level, message) => pushLog(level, 'มาโคร', message),
+    );
+    player.on('state', (state) => mainWindow?.webContents.send(IPC.evtMacroState, state));
+    scheduler = new Scheduler(app.getPath('userData'), runScheduled, (level, message) =>
+      pushLog(level, 'ตั้งเวลา', message),
+    );
+
     loadKeymap();
     injector = new KeyInjector((level, message) => pushLog(level, 'จอย', message));
     gamepad = new GamepadServer((level, message) => pushLog(level, 'จอย', message));
@@ -529,6 +649,7 @@ if (!gotLock) {
 
     if (status.ok) {
       await discovery.start();
+      scheduler.start();
       // ลองต่อเครื่องที่จำไว้ตามที่อยู่ล่าสุดเลย ไม่ต้องรอให้ mDNS เห็นก่อน
       void discovery.reconnectKnown();
     }
@@ -540,7 +661,8 @@ if (!gotLock) {
 
   app.on('window-all-closed', () => {
     // ต้องหยุดเซสชันก่อนออก ไม่งั้นโพรเซส server บนมือถือค้างกินแบตต่อไปเรื่อยๆ
-    stopSession('ปิดแอป');
+    stopAllSessions('ปิดแอป');
+    scheduler?.stop();
     gamepad?.stop();
     injector?.stop();
     discovery?.stop();
@@ -549,7 +671,8 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => {
-    stopSession('ปิดแอป');
+    stopAllSessions('ปิดแอป');
+    scheduler?.stop();
     fileLog?.close();
   });
 }

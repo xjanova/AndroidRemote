@@ -14,6 +14,7 @@ import {
   type MirrorPacket,
   type UpdateStateView,
 } from '../shared/api';
+import type { MacroRunState } from '../shared/automation';
 import type {
   AdbStatus,
   DeviceInfo,
@@ -70,10 +71,26 @@ const api: AndroidRemoteApi = {
 
   listCameras: (serial) => ipcRenderer.invoke(IPC.listCameras, serial),
   startMirror: (serial, options) => ipcRenderer.invoke(IPC.mirrorStart, serial, options),
-  stopMirror: () => ipcRenderer.invoke(IPC.mirrorStop) as Promise<void>,
+  stopMirror: (serial) => ipcRenderer.invoke(IPC.mirrorStop, serial) as Promise<void>,
+  activeSessions: () => ipcRenderer.invoke(IPC.mirrorSessions) as Promise<string[]>,
   sendTouch: (input) => ipcRenderer.send(IPC.mirrorTouch, input),
-  sendKey: (action, keycode) => ipcRenderer.send(IPC.mirrorKey, action, keycode),
-  sendScreenPower: (on) => ipcRenderer.send(IPC.mirrorScreenPower, on),
+  sendKey: (serial, action, keycode) => ipcRenderer.send(IPC.mirrorKey, serial, action, keycode),
+  sendScreenPower: (serial, on) => ipcRenderer.send(IPC.mirrorScreenPower, serial, on),
+
+  macroList: () => ipcRenderer.invoke(IPC.macroList),
+  macroRecordStart: (serial, name) => ipcRenderer.invoke(IPC.macroRecordStart, serial, name) as Promise<void>,
+  macroRecordStop: () => ipcRenderer.invoke(IPC.macroRecordStop),
+  macroRecordingState: () => ipcRenderer.invoke(IPC.macroRecordingState),
+  macroPlay: (macroId, serials, loops) => ipcRenderer.invoke(IPC.macroPlay, macroId, serials, loops),
+  macroStop: () => ipcRenderer.invoke(IPC.macroStop) as Promise<void>,
+  macroDelete: (macroId) => ipcRenderer.invoke(IPC.macroDelete, macroId) as Promise<void>,
+  macroRename: (macroId, name) => ipcRenderer.invoke(IPC.macroRename, macroId, name) as Promise<void>,
+  macroAddFindTap: (macroId, selector) => ipcRenderer.invoke(IPC.macroAddFindTap, macroId, selector) as Promise<void>,
+  uiDump: (serial) => ipcRenderer.invoke(IPC.uiDump, serial),
+  scheduleList: () => ipcRenderer.invoke(IPC.scheduleList),
+  scheduleSave: (entry) => ipcRenderer.invoke(IPC.scheduleSave, entry) as Promise<void>,
+  scheduleDelete: (id) => ipcRenderer.invoke(IPC.scheduleDelete, id) as Promise<void>,
+  onMacroState: (cb) => subscribe<MacroRunState>(IPC.evtMacroState, cb),
 
   windowMinimize: () => ipcRenderer.send(IPC.windowMinimize),
   windowToggleMaximize: () => ipcRenderer.send(IPC.windowToggleMaximize),
@@ -89,7 +106,7 @@ const api: AndroidRemoteApi = {
   onUpdateChanged: (cb) => subscribe<UpdateStateView>(IPC.evtUpdateChanged, cb),
   onMirrorHeader: (cb) => subscribe<MirrorHeader>(IPC.evtMirrorHeader, cb),
   onMirrorPacket: (cb) => subscribe<MirrorPacket>(IPC.evtMirrorPacket, cb),
-  onMirrorClosed: (cb) => subscribe<string>(IPC.evtMirrorClosed, cb),
+  onMirrorClosed: (cb) => subscribe<{ serial: string; reason: string }>(IPC.evtMirrorClosed, cb),
 };
 
 contextBridge.exposeInMainWorld('androidRemote', api);
