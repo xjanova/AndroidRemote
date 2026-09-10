@@ -4,7 +4,19 @@
  */
 
 import type { AdbStatus, DeviceInfo, DiscoveryState, GamepadStateView, ShellResult } from './types';
-import type { MacroRunState, MacroView, ScheduleView, UiNodeView, UiSelector } from './automation';
+import type {
+  DeviceProfile,
+  FracRect,
+  MacroRunState,
+  MacroView,
+  MatchResult,
+  ScheduleView,
+  ScreenshotPreview,
+  TemplateInfo,
+  UiNodeView,
+  UiSelector,
+  VolumeStream,
+} from './automation';
 import type {
   CreateEmulatorSpec,
   EmulatorBrandId,
@@ -165,6 +177,29 @@ export interface AndroidRemoteApi {
   scheduleSave(entry: ScheduleView): Promise<void>;
   scheduleDelete(id: string): Promise<void>;
   onMacroState(cb: (state: MacroRunState) => void): () => void;
+  /** บันทึกมาโครทั้งก้อน (แก้ขั้นตอน/ตัวแปร/ชุดเทมเพลต/humanize/นโยบายพัง) */
+  macroSave(macro: MacroView): Promise<void>;
+  macroRunState(): Promise<MacroRunState>;
+
+  /** ─── โปรไฟล์ต่อเครื่อง (ตัวแปร + เสียง) ─── */
+  profileList(): Promise<DeviceProfile[]>;
+  profileSave(profile: DeviceProfile): Promise<void>;
+  profileDelete(serial: string): Promise<void>;
+
+  /** ─── เทมเพลตภาพ + ภาพหน้าจอสำหรับตัด ─── */
+  templateSets(): Promise<string[]>;
+  templateList(set: string): Promise<Array<TemplateInfo & { dataUrl: string | null }>>;
+  templateDelete(set: string, name: string): Promise<void>;
+  screenshotPreview(serial: string): Promise<ScreenshotPreview>;
+  /** ตัดจากภาพหน้าจอล่าสุดที่ preview ไว้ (กรอบเดียวกับที่ผู้ใช้ลาก) */
+  templateSaveFromPreview(serial: string, set: string, name: string, rect: FracRect): Promise<TemplateInfo>;
+  /** ลองหาเทมเพลตบนจอเครื่องตอนนี้ — คืนคะแนนดีที่สุดแม้ไม่ถึงเกณฑ์ */
+  templateTest(serial: string, set: string, name: string): Promise<MatchResult | null>;
+  ocrTest(serial: string, rect: FracRect, digits: boolean): Promise<{ text: string; confidence: number; tookMs: number }>;
+
+  /** ─── เสียงต่อเครื่อง ─── */
+  volumeGet(serial: string, stream: VolumeStream): Promise<{ index: number; max: number; percent: number } | null>;
+  volumeSet(serial: string, stream: VolumeStream, percent: number): Promise<{ ok: boolean; via: string }>;
 
   /** ─── อัปเดตตัวแอป ─── */
   updateState(): Promise<UpdateStateView>;
@@ -275,6 +310,20 @@ export const IPC = {
   scheduleSave: 'schedule:save',
   scheduleDelete: 'schedule:delete',
   evtMacroState: 'evt:macro-state',
+  macroSave: 'macro:save',
+  macroRunState: 'macro:run-state',
+  profileList: 'profile:list',
+  profileSave: 'profile:save',
+  profileDelete: 'profile:delete',
+  templateSets: 'template:sets',
+  templateList: 'template:list',
+  templateDelete: 'template:delete',
+  screenshotPreview: 'screenshot:preview',
+  templateSaveFromPreview: 'template:save-from-preview',
+  templateTest: 'template:test',
+  ocrTest: 'ocr:test',
+  volumeGet: 'volume:get',
+  volumeSet: 'volume:set',
   mirrorTouch: 'mirror:touch',
   mirrorKey: 'mirror:key',
   mirrorScreenPower: 'mirror:screen-power',

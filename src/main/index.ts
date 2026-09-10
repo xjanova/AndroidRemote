@@ -16,7 +16,13 @@ import { FileLog } from './log';
 import { MacroPlayer, MacroRecorder, MacroStore } from './automation/Macros';
 import { Scheduler } from './automation/Scheduler';
 import { dumpUi } from './automation/UiDump';
-import type { ScheduleView, UiSelector } from '../shared/automation';
+import { ProfileStore } from './automation/Profiles';
+import { TemplateStore } from './vision/templates';
+import { Ocr, ocrCacheDir } from './vision/ocr';
+import { captureFrame, previewJpeg, type Frame } from './vision/capture';
+import { scoreTemplate, warmUpMatcher } from './vision/match';
+import { getVolume, setVolume } from './device/volume';
+import type { DeviceProfile, FracRect, MacroView, ScheduleView, UiSelector, VolumeStream } from '../shared/automation';
 import { EmulatorManager } from './emulator/EmulatorManager';
 import type { CreateEmulatorSpec, EmulatorBrandId } from '../shared/emulator';
 import {
@@ -40,6 +46,18 @@ let macroStore: MacroStore;
 let recorder: MacroRecorder;
 let player: MacroPlayer;
 let scheduler: Scheduler;
+let profiles: ProfileStore;
+let templates: TemplateStore;
+let ocr: Ocr;
+/** เฟรมล่าสุดต่อเครื่อง — ให้หลายขั้นตอนใน 300ms เดียวกันใช้ภาพเดียว และให้ตัดเทมเพลตจากภาพที่ผู้ใช้เห็น */
+const lastFrames = new Map<string, Frame>();
+async function captureCached(serial: string, maxAgeMs = 300): Promise<Frame> {
+  const hit = lastFrames.get(serial);
+  if (hit && Date.now() - hit.takenAt < maxAgeMs) return hit;
+  const f = await captureFrame(adb, serial);
+  lastFrames.set(serial, f);
+  return f;
+}
 let emulators: EmulatorManager;
 let gamepad: GamepadServer;
 let injector: KeyInjector;
@@ -161,6 +179,35 @@ function createWindow(): void {
   } else {
     void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+
+  // โหมดแคปหน้าจอตัวเองสำหรับนักพัฒนา: AR_UI_SHOT='[{"click":"#btn-macro"},{"wait":1500},{"shot":"D:/x/a.png"}]'
+  // แคปจากข้างในด้วย capturePage — ไม่แย่งโฟกัส ไม่ขยับเมาส์ผู้ใช้ (ต่างจากการจำลองคลิกบนเดสก์ท็อป)
+  if (process.env.AR_UI_SHOT) {
+    mainWindow.webContents.once('did-finish-load', () => void runUiShotScript(process.env.AR_UI_SHOT ?? '[]'));
+  }
+}
+
+async function runUiShotScript(json: string): Promise<void> {
+  const wc = mainWindow?.webContents;
+  if (!wc) return;
+  const steps = JSON.parse(json) as Array<{ click?: string; wait?: number; shot?: string; js?: string }>;
+  await new Promise((r) => setTimeout(r, 2500));
+  for (const step of steps) {
+    if (step.click) {
+      const r = await wc.executeJavaScript(
+        `(() => { const el = document.querySelector(${JSON.stringify(step.click)}); if (!el) return 'ไม่พบ ' + ${JSON.stringify(step.click)}; el.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 'ok'; })()`,
+      );
+      pushLog('info', 'ui-shot', `คลิก ${step.click}: ${String(r)}`);
+    }
+    if (step.js) pushLog('info', 'ui-shot', `js: ${JSON.stringify(await wc.executeJavaScript(step.js))}`);
+    if (step.wait) await new Promise((r) => setTimeout(r, step.wait));
+    if (step.shot) {
+      const img = await wc.capturePage();
+      fs.writeFileSync(step.shot, img.toPNG());
+      pushLog('info', 'ui-shot', `แคป ${step.shot}`);
+    }
+  }
+  app.quit();
 }
 
 function registerIpc(): void {
@@ -450,6 +497,52 @@ function registerIpc(): void {
   ipcMain.handle(IPC.scheduleList, () => scheduler.list());
   ipcMain.handle(IPC.scheduleSave, (_e, entry: ScheduleView) => scheduler.put(entry));
   ipcMain.handle(IPC.scheduleDelete, (_e, id: string) => scheduler.delete(id));
+  ipcMain.handle(IPC.macroSave, (_e, m: MacroView) => {
+    if (!m?.id) throw new Error('มาโครไม่มี id');
+    macroStore.put({ ...m, steps: m.steps.map((st) => ({ ...st, atMs: Number.isFinite(st.atMs) ? st.atMs : 0 })) });
+  });
+  ipcMain.handle(IPC.macroRunState, () => player.current());
+
+  // ─────────────────────────── โปรไฟล์ / เทมเพลต / OCR / เสียง ───────────────────────────
+
+  ipcMain.handle(IPC.profileList, () => profiles.list());
+  ipcMain.handle(IPC.profileSave, (_e, p: DeviceProfile) => profiles.put(p));
+  ipcMain.handle(IPC.profileDelete, (_e, serial: string) => profiles.delete(serial));
+
+  ipcMain.handle(IPC.templateSets, () => templates.sets());
+  ipcMain.handle(IPC.templateList, (_e, set: string) =>
+    templates.list(set).map((t) => ({ ...t, dataUrl: templates.dataUrl(set, t.name) })),
+  );
+  ipcMain.handle(IPC.templateDelete, (_e, set: string, name: string) => templates.delete(set, name));
+  ipcMain.handle(IPC.screenshotPreview, async (_e, serial: string) => {
+    const f = await captureFrame(adb, serial);
+    lastFrames.set(serial, f);
+    const jpg = await previewJpeg(f, 360);
+    return { serial, dataUrl: `data:image/jpeg;base64,${jpg.toString('base64')}`, width: f.width, height: f.height, takenAt: f.takenAt };
+  });
+  ipcMain.handle(IPC.templateSaveFromPreview, async (_e, serial: string, set: string, name: string, rect: FracRect) => {
+    // ใช้เฟรมเดียวกับที่ผู้ใช้เห็นตอนลากกรอบ (ไม่ถ่ายใหม่ — หน้าจออาจเปลี่ยนไปแล้ว)
+    const f = lastFrames.get(serial) ?? (await captureFrame(adb, serial));
+    const info = await templates.save(set, name, f, rect);
+    pushLog('info', 'เทมเพลต', `บันทึก "${set}/${name}" ${info.width}×${info.height}px`);
+    return info;
+  });
+  ipcMain.handle(IPC.templateTest, async (_e, serial: string, set: string, name: string) => {
+    const tpl = await templates.load(set, name);
+    const f = await captureCached(serial, 0);
+    return scoreTemplate(f, tpl);
+  });
+  ipcMain.handle(IPC.ocrTest, async (_e, serial: string, rect: FracRect, digits: boolean) => {
+    const f = await captureCached(serial, 0);
+    return ocr.read(f, rect, { digits });
+  });
+
+  ipcMain.handle(IPC.volumeGet, (_e, serial: string, stream: VolumeStream) => getVolume(adb, serial, stream));
+  ipcMain.handle(IPC.volumeSet, async (_e, serial: string, stream: VolumeStream, percent: number) => {
+    const r = await setVolume(adb, serial, stream, percent);
+    pushLog(r.ok ? 'info' : 'warn', 'เสียง', `${registry.get(serial)?.model ?? serial}: ${stream} ${percent}% ${r.ok ? `(${r.via})` : 'ตั้งไม่ได้'}`);
+    return { ok: r.ok, via: r.via };
+  });
 
   ipcMain.on(IPC.windowMinimize, () => mainWindow?.minimize());
   ipcMain.on(IPC.windowToggleMaximize, () => {
@@ -619,11 +712,21 @@ if (!gotLock) {
 
     macroStore = new MacroStore(app.getPath('userData'));
     recorder = new MacroRecorder();
+    profiles = new ProfileStore(app.getPath('userData'));
+    templates = new TemplateStore(path.join(app.getPath('userData'), 'templates'));
+    ocr = new Ocr(ocrCacheDir(app.getPath('userData')), (level, message) => pushLog(level, 'OCR', message));
+    warmUpMatcher();
     player = new MacroPlayer(
       {
         adb,
         send: (serial, msg) => sessions.get(serial)?.send(msg) ?? false,
         screenSize: screenSizeOf,
+        templates,
+        capture: (serial) => captureCached(serial),
+        ocr,
+        profiles,
+        getMacro: (id) => macroStore.get(id),
+        setVolume: (serial, stream, percent) => setVolume(adb, serial, stream, percent),
       },
       (level, message) => pushLog(level, 'มาโคร', message),
     );

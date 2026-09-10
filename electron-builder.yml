@@ -11,6 +11,15 @@ files:
   - package.json
   - '!**/*.map'
 
+# โมดูล native/WASM ต้องอยู่นอก asar: sharp โหลด .node/.dll จากพาธจริง,
+# tesseract.js spawn worker จากไฟล์, opencv-js อ่าน .wasm ข้างตัวเอง
+asarUnpack:
+  - '**/node_modules/sharp/**'
+  - '**/node_modules/@img/**'
+  - '**/node_modules/tesseract.js/**'
+  - '**/node_modules/tesseract.js-core/**'
+  - '**/node_modules/@techstark/opencv-js/**'
+
 # ของที่ต้องวางข้างตัวโปรแกรม ไม่ใช่ยัดใน asar — เพราะเราส่งไฟล์เหล่านี้เข้ามือถือ
 # และสั่งรันเป็นโพรเซสแยก ซึ่งทำกับไฟล์ใน asar ไม่ได้
 extraResources:

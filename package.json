@@ -23,7 +23,8 @@
     "doctor": "tsx scripts/doctor.ts",
     "smoke:automation": "tsx scripts/smoke-automation.ts",
     "smoke:mirror": "tsx scripts/smoke-mirror.ts",
-    "smoke:nox": "tsx scripts/smoke-nox.ts"
+    "smoke:nox": "tsx scripts/smoke-nox.ts",
+    "smoke:automation2": "tsx scripts/smoke-automation2.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -35,6 +36,9 @@
     "vite": "^5.4.11"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "@techstark/opencv-js": "^5.0.0-release.1",
+    "electron-updater": "^6.8.9",
+    "sharp": "^0.35.4",
+    "tesseract.js": "^7.0.0"
   }
 }
