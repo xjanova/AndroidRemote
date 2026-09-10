@@ -84,7 +84,20 @@ export type MacroStep =
   /** จบมาโครของเครื่องนี้แบบสำเร็จ */
   | { t: 'stop'; message?: string }
   /** จบแบบล้มเหลว (ให้ผู้ใช้เห็นว่าผิดปกติ) */
-  | { t: 'fail'; message?: string };
+  | { t: 'fail'; message?: string }
+  /**
+   * ตา AI: หาสิ่งที่บรรยายด้วยคำพูด ("ปุ่มปิด X มุมขวาบน", "ไอคอนจดหมาย") แล้วแตะ
+   * ถามแค็ตตาล็อกหน้าจอก่อน (จำได้ = ไม่ต้องถามโมเดล) ไม่รู้จักค่อยให้โมเดลภาพดู แล้วจำไว้ใช้ครั้งหน้า
+   */
+  | { t: 'vlm_tap'; query: string; timeoutMs?: number; learn?: boolean }
+  /** ตา AI: ถามคำถามเกี่ยวกับจอ (เช่น "มีเพชรกี่เม็ด ตอบเป็นตัวเลข") เก็บคำตอบลงตัวแปร */
+  | { t: 'vlm_var'; question: string; name: string }
+  /** ถ้าหน้าจอตอนนี้ (ตามแค็ตตาล็อก) ชื่อตรง/ไม่ตรง → กระโดด — หน้าที่ไม่รู้จักจะให้โมเดลตั้งชื่อแล้วจำ */
+  | { t: 'if_screen'; screen: string; found: boolean; goto: string }
+  /** รอจนหน้าจอเป็นหน้าที่ระบุ (substring หรือ /regex/ ของชื่อหน้าในแค็ตตาล็อก) */
+  | { t: 'wait_screen'; screen: string; timeoutMs: number }
+  /** เก็บชื่อหน้าจอปัจจุบันลงตัวแปร (ไม่รู้จัก → ให้โมเดลตั้งชื่อแล้วจำ) */
+  | { t: 'screen_var'; name: string };
 
 export type MacroStepType = MacroStep['t'];
 
@@ -182,6 +195,70 @@ export interface ScheduleView {
   enabled: boolean;
   lastRunAt?: number;
   lastResult?: string;
+}
+
+// ─────────────────────────── ตา AI (โมเดลภาพผ่าน Ollama) + แค็ตตาล็อกหน้าจอ ───────────────────────────
+
+/** ปุ่ม/ไอคอนหนึ่งชิ้นที่รู้จักบนหน้าจอหนึ่ง */
+export interface ScreenElement {
+  label: string;
+  /** button | icon | tab | close | input | link | text … (โมเดลเป็นคนบอก ไม่บังคับชุด) */
+  kind: string;
+  rect: FracRect;
+  /** คำที่ผู้ใช้เคยใช้เรียกชิ้นนี้ใน vlm_tap — ครั้งหน้าตรงคำเดิมไม่ต้องถามโมเดล */
+  aliases?: string[];
+}
+
+/**
+ * หน้าจอหนึ่งหน้าในแค็ตตาล็อกของเกม — ลายเซ็น dHash หลายตัว (หน้าเดียวกันแต่แอนิเมชันต่างกัน)
+ * + ชื่อที่โมเดลตั้ง + ปุ่มที่รู้จัก
+ */
+export interface ScreenEntry {
+  id: string;
+  set: string;
+  name: string;
+  hashes: string[];
+  elements: ScreenElement[];
+  seen: number;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  source: 'vlm' | 'user';
+}
+
+export interface VlmSettings {
+  /** Ollama */
+  baseUrl: string;
+  model: string;
+  /** ความกว้างภาพที่ส่งให้โมเดล — 540 พอสำหรับปุ่ม/ไอคอน และประหยัด token ภาพ (~650) */
+  imageWidth: number;
+  timeoutMs: number;
+}
+
+export interface VlmStatus {
+  ok: boolean;
+  message: string;
+  settings: VlmSettings;
+  /** โมเดลทั้งหมดที่ Ollama มี (ให้ผู้ใช้เลือก) */
+  models: string[];
+  /** โมเดลที่เลือกเป็นสาย thinking — เราปิดให้ด้วยการเติม think ว่างนำหน้าคำตอบ */
+  thinking?: boolean;
+}
+
+export interface VlmLocateResult {
+  found: boolean;
+  label?: string;
+  rect?: FracRect;
+  tookMs: number;
+  /** catalog = จำได้ ไม่ต้องถามโมเดล */
+  via: 'catalog' | 'vlm';
+}
+
+export interface VlmDescribeResult {
+  screen: string;
+  elements: ScreenElement[];
+  tookMs: number;
+  /** ถ้าบันทึกเข้าแค็ตตาล็อกแล้ว */
+  entry?: ScreenEntry;
 }
 
 /** ภาพหน้าจอย่อสำหรับให้ผู้ใช้ลากกรอบตัดเทมเพลต */

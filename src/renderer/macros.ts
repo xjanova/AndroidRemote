@@ -15,9 +15,11 @@ import type {
   MacroStepType,
   MacroView,
   ScheduleView,
+  ScreenEntry,
   ScreenshotPreview,
   TemplateInfo,
   UiNodeView,
+  VlmStatus,
   VolumeStream,
 } from '../shared/automation';
 
@@ -83,6 +85,16 @@ export function stepLabel(step: Step): string {
       return `จบ${step.message ? `: ${step.message}` : ''}`;
     case 'fail':
       return `ล้มเหลว${step.message ? `: ${step.message}` : ''}`;
+    case 'vlm_tap':
+      return `AI หา "${step.query}" แล้วแตะ${step.learn === false ? ' (ไม่จำ)' : ''}`;
+    case 'vlm_var':
+      return `AI ถาม "${step.question}" เก็บใน ${step.name}`;
+    case 'if_screen':
+      return `ถ้าหน้าจอ${step.found ? '' : 'ไม่'}ใช่ "${step.screen}" → ไป ${step.goto}`;
+    case 'wait_screen':
+      return `รอหน้า "${step.screen}" ≤${Math.round(step.timeoutMs / 1000)}s`;
+    case 'screen_var':
+      return `ชื่อหน้าจอตอนนี้ → ${step.name}`;
   }
 }
 
@@ -106,7 +118,12 @@ const STEP_TYPES: Array<{ t: MacroStepType; label: string; group: string }> = [
   { t: 'open_url', label: 'เปิดลิงก์ (เกมเบราว์เซอร์)', group: 'พื้นฐาน' },
   { t: 'find_image_tap', label: 'หาภาพแล้วแตะ', group: 'ภาพ' },
   { t: 'wait_image', label: 'รอภาพปรากฏ/หายไป', group: 'ภาพ' },
+  { t: 'vlm_tap', label: 'AI หาจากคำบรรยายแล้วแตะ', group: 'ตา AI' },
+  { t: 'wait_screen', label: 'รอจนถึงหน้าจอที่ระบุ', group: 'ตา AI' },
+  { t: 'vlm_var', label: 'AI ตอบคำถามเก็บตัวแปร', group: 'ตา AI' },
+  { t: 'screen_var', label: 'ชื่อหน้าจอตอนนี้ → ตัวแปร', group: 'ตา AI' },
   { t: 'if_image', label: 'ถ้าเจอ/ไม่เจอภาพ → ไป', group: 'เงื่อนไข' },
+  { t: 'if_screen', label: 'ถ้าหน้าจอใช่/ไม่ใช่ → ไป', group: 'เงื่อนไข' },
   { t: 'if_text', label: 'ถ้าอ่านข้อความได้ → ไป', group: 'เงื่อนไข' },
   { t: 'if_var', label: 'ถ้าตัวแปร → ไป', group: 'เงื่อนไข' },
   { t: 'ocr_var', label: 'อ่านข้อความ/ตัวเลขเก็บตัวแปร', group: 'ตัวแปร' },
@@ -190,6 +207,25 @@ const FIELDS: Partial<Record<MacroStepType, Field[]>> = {
   ],
   stop: [{ k: 'message', l: 'ข้อความ (ไม่ใส่ก็ได้)', kind: 'text' }],
   fail: [{ k: 'message', l: 'ข้อความ (ไม่ใส่ก็ได้)', kind: 'text' }],
+  vlm_tap: [
+    { k: 'query', l: 'บรรยายสิ่งที่จะแตะ (อังกฤษแม่นกว่า) เช่น close X button top right', kind: 'text' },
+    { k: 'timeoutMs', l: 'รอไม่เกิน ms (AI ใช้ ~5-20 วิ/ครั้ง)', kind: 'num', d: '30000' },
+    { k: 'learn', l: 'จำหน้าจอ/ปุ่มไว้ใช้ครั้งหน้า', kind: 'bool', d: 'true' },
+  ],
+  vlm_var: [
+    { k: 'question', l: 'คำถาม เช่น How many gems? Answer with a number', kind: 'text' },
+    { k: 'name', l: 'เก็บในตัวแปร', kind: 'text' },
+  ],
+  if_screen: [
+    { k: 'screen', l: 'ชื่อหน้า (บางส่วน หรือ /regex/)', kind: 'text' },
+    { k: 'found', l: 'เมื่อใช่ (ไม่ติ๊ก = เมื่อไม่ใช่)', kind: 'bool', d: 'true' },
+    { k: 'goto', l: 'ไป label', kind: 'label' },
+  ],
+  wait_screen: [
+    { k: 'screen', l: 'ชื่อหน้า (บางส่วน หรือ /regex/)', kind: 'text' },
+    { k: 'timeoutMs', l: 'รอไม่เกิน ms', kind: 'num', d: '60000' },
+  ],
+  screen_var: [{ k: 'name', l: 'เก็บในตัวแปร', kind: 'text', d: 'screen' }],
 };
 
 function parseRect(s: string): FracRect | null {
@@ -254,6 +290,16 @@ function buildStep(t: MacroStepType, v: Record<string, string>): MacroStep | str
       return { t, message: s('message') || undefined };
     case 'fail':
       return { t, message: s('message') || undefined };
+    case 'vlm_tap':
+      return need('query', 'คำบรรยายสิ่งที่จะแตะ') ?? { t, query: s('query'), timeoutMs: n('timeoutMs', 30000), learn: b('learn') ? undefined : false };
+    case 'vlm_var':
+      return need('question', 'คำถาม') ?? need('name', 'ชื่อตัวแปร') ?? { t, question: s('question'), name: s('name') };
+    case 'if_screen':
+      return need('screen', 'ชื่อหน้า') ?? need('goto', 'label ปลายทาง') ?? { t, screen: s('screen'), found: b('found'), goto: s('goto') };
+    case 'wait_screen':
+      return need('screen', 'ชื่อหน้า') ?? { t, screen: s('screen'), timeoutMs: n('timeoutMs', 60000) };
+    case 'screen_var':
+      return need('name', 'ชื่อตัวแปร') ?? { t, name: s('name') };
     case 'find_tap':
       return 'เพิ่มขั้นตอนนี้จากปุ่ม “หา element จากจอตอนนี้”';
   }
@@ -292,6 +338,12 @@ export function openMacroDialog(
   let sel: FracRect | null = null;
   let shotSerial: string | null = selectedSerial;
   let testResult = '';
+
+  // ตา AI + แค็ตตาล็อกหน้าจอ
+  let vlmStatus: VlmStatus | null = null;
+  let screens: Array<ScreenEntry & { thumb: string | null }> = [];
+  let aiQuery = '';
+  let aiBusy = false;
 
   // ฟอร์มขั้นตอน
   let addType: MacroStepType = 'find_image_tap';
@@ -338,11 +390,16 @@ export function openMacroDialog(
     if (!currentSet && templateSets.length > 0) currentSet = templateSets[0];
     await reloadTemplates();
     render();
+    // สถานะ Ollama เช็คทีหลัง (คำขอเครือข่าย) — ไม่ให้หน้าต่างรอ
+    vlmStatus = await api.vlmStatus().catch(() => null);
+    render();
   }
   async function reloadTemplates(): Promise<void> {
     const set = openMacro()?.templateSet || currentSet;
-    templateItems = set ? await api.templateList(set) : [];
+    [templateItems, screens] = set ? await Promise.all([api.templateList(set), api.screenList(set).catch(() => [])]) : [[], []];
   }
+  /** ชุดที่ใช้อยู่ = ชื่อเกม — ทั้งเทมเพลตและแค็ตตาล็อกหน้าจอใช้กุญแจเดียวกัน */
+  const activeSet = (): string => openMacro()?.templateSet || currentSet;
 
   // ─────────────────────────── การกระทำ ───────────────────────────
 
@@ -462,6 +519,50 @@ export function openMacroDialog(
     }
     render();
   }
+  /** ให้ AI หาสิ่งที่พิมพ์บนภาพที่ preview ไว้ — เจอแล้ววาดกรอบให้ (ใช้ต่อเป็นเทมเพลตได้เลย) */
+  async function aiLocate(): Promise<void> {
+    if (aiBusy) return; // กด Enter รัว → ไม่ยิงซ้ำ
+    const serial = preview?.serial ?? shotSerial ?? selectedSerial;
+    if (!serial) return log('warn', 'เลือกเครื่องก่อน');
+    if (!aiQuery.trim()) return log('warn', 'พิมพ์สิ่งที่จะให้ AI หาก่อน เช่น close button');
+    if (!preview) await takeShot();
+    aiBusy = true;
+    testResult = `AI กำลังหา "${aiQuery}"… (5-20 วิ, ครั้งแรกโหลดโมเดลนานกว่า)`;
+    render();
+    try {
+      const r = await api.vlmLocate(serial, aiQuery);
+      if (r.found && r.rect) {
+        sel = r.rect;
+        testResult = `AI เจอ "${r.label ?? aiQuery}" ที่ (${pct(r.rect.fx + r.rect.fw / 2)}, ${pct(r.rect.fy + r.rect.fh / 2)}) · ${r.tookMs}ms — วาดกรอบให้แล้ว`;
+      } else testResult = `AI ไม่เห็น "${aiQuery}" บนจอนี้ (${r.tookMs}ms)`;
+    } catch (err) {
+      testResult = err instanceof Error ? err.message : String(err);
+    }
+    aiBusy = false;
+    render();
+  }
+  /** ให้ AI ตั้งชื่อหน้า + บอกปุ่ม แล้วจำเข้าแค็ตตาล็อกของชุดปัจจุบัน */
+  async function aiDescribe(): Promise<void> {
+    if (aiBusy) return;
+    const serial = preview?.serial ?? shotSerial ?? selectedSerial;
+    if (!serial) return log('warn', 'เลือกเครื่องก่อน');
+    if (!preview) await takeShot();
+    const set = activeSet() || window.prompt('ชื่อเกม/ชุด สำหรับเก็บหน้าจอที่จำได้', 'game');
+    if (!set) return;
+    aiBusy = true;
+    testResult = 'AI กำลังอ่านหน้าจอ… (10-30 วิ)';
+    render();
+    try {
+      const r = await api.vlmDescribe(serial, set);
+      currentSet = set;
+      testResult = `หน้า "${r.screen}" — ${r.elements.length} ปุ่ม: ${r.elements.slice(0, 8).map((e) => e.label).join(', ')}${r.elements.length > 8 ? '…' : ''} (${r.tookMs}ms) — จำไว้ในชุด ${set} แล้ว`;
+      await reloadTemplates();
+    } catch (err) {
+      testResult = err instanceof Error ? err.message : String(err);
+    }
+    aiBusy = false;
+    render();
+  }
   async function addStep(): Promise<void> {
     const m = openMacro();
     if (!m) return;
@@ -500,8 +601,47 @@ export function openMacroDialog(
           <button class="xpbtn" id="shot-save-tpl" ${sel ? '' : 'disabled'}>บันทึกกรอบเป็นเทมเพลต…</button>
           <div style="display:flex;gap:6px"><button class="xpbtn" id="shot-ocr" ${sel ? '' : 'disabled'}>ทดสอบอ่านข้อความ</button><button class="xpbtn" id="shot-ocr-d" ${sel ? '' : 'disabled'}>อ่านตัวเลข</button></div>
           <button class="xpbtn" id="shot-use-rect" ${sel ? '' : 'disabled'}>ใช้กรอบนี้ในฟอร์มขั้นตอน</button>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:2px">
+            <span style="font-size:10px;white-space:nowrap">ตา AI ${vlmStatus === null ? '<span style="color:var(--ink-dim)">(กำลังเช็ค…)</span>' : vlmStatus.ok ? '<span class="chip chip--ready">พร้อม</span>' : `<span class="chip chip--pairing" title="${esc(vlmStatus.message)}">ไม่พร้อม</span>`}</span>
+            <input class="text-input" id="ai-query" value="${esc(aiQuery)}" placeholder="บรรยายสิ่งที่จะหา เช่น close button" style="flex:1;min-width:0" ${aiBusy ? 'disabled' : ''} />
+            <button class="xpbtn" id="ai-locate" ${aiBusy || !vlmStatus?.ok ? 'disabled' : ''}>AI หา</button>
+          </div>
+          <button class="xpbtn" id="ai-describe" ${aiBusy || !vlmStatus?.ok ? 'disabled' : ''} title="ตั้งชื่อหน้า + บอกปุ่มทั้งหมด แล้วจำเข้าแค็ตตาล็อกของชุดนี้">AI อ่านหน้าจอทั้งหน้าแล้วจำไว้</button>
           ${testResult ? `<div style="font-size:10px;padding:5px 7px;background:#fff9e3;border:1px solid #e0c060;border-radius:3px;word-break:break-word">${esc(testResult)}</div>` : ''}
-          <div style="font-size:10px;color:var(--ink-dim);line-height:1.6">เทมเพลตตัดจากจอเครื่องไหนก็ได้ — ตอนเล่นบนเครื่องอื่นระบบสเกลให้ตามความกว้างจอเอง</div>
+          ${vlmStatus && !vlmStatus.ok ? `<div style="font-size:10px;color:#8a6508;line-height:1.5">${esc(vlmStatus.message)}</div>` : ''}
+          <div style="font-size:10px;color:var(--ink-dim);line-height:1.6">เทมเพลตตัดจากจอเครื่องไหนก็ได้ — ตอนเล่นบนเครื่องอื่นระบบสเกลให้ตามความกว้างจอเอง · AI = โมเดลภาพใน Ollama บนเครื่องนี้ ช้ากว่าเทมเพลตมากแต่ไม่ต้องตัดภาพเอง และจำหน้าที่เคยเห็นไว้</div>
+        </div>
+      </div>`;
+  }
+
+  /** หน้าจอที่ AI จำได้ในชุดนี้ */
+  function screensPanel(): string {
+    const set = activeSet();
+    return `
+      <div class="gbox">
+        <div class="gbox__title">หน้าจอที่ AI จำได้ในชุด ${esc(set || '—')} (${screens.length})</div>
+        <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:6px 10px;align-items:center;font-size:10px;margin-bottom:8px">
+          <span>โมเดล</span>
+          <div style="display:flex;gap:6px"><input class="text-input" id="vlm-model" list="vlm-models" value="${esc(vlmStatus?.settings.model ?? 'qwen3-vl:4b')}" style="flex:1" /><datalist id="vlm-models">${(vlmStatus?.models ?? []).map((m) => `<option value="${esc(m)}"></option>`).join('')}</datalist></div>
+          <span>ภาพกว้าง <input class="text-input" id="vlm-width" type="number" min="240" max="1600" step="20" value="${vlmStatus?.settings.imageWidth ?? 540}" style="width:60px" /> px</span>
+          <button class="xpbtn" id="vlm-save">บันทึก/เช็คใหม่</button>
+        </div>
+        <div style="font-size:10px;color:${vlmStatus?.ok ? 'var(--ink-dim)' : '#8a6508'};margin-bottom:8px">${esc(vlmStatus?.message ?? 'กำลังเช็ค Ollama…')}${vlmStatus?.ok ? ' · ต้องเปิด Ollama ไว้ · โมเดลสาย instruct เร็วกว่าสาย thinking' : ''}</div>
+        <div class="found sunken">
+          ${
+            screens.length === 0
+              ? `<div class="found__empty">ยังไม่มี — กด “AI อ่านหน้าจอทั้งหน้าแล้วจำไว้” หรือใช้ขั้นตอน AI ในมาโคร แล้วหน้าที่เห็นจะถูกจำที่นี่ (ครั้งต่อไปไม่ต้องถาม AI)</div>`
+              : screens
+                  .map(
+                    (e) => `<div class="found__row">
+                      ${e.thumb ? `<img src="${e.thumb}" style="height:44px;width:auto;background:#fff;border:1px solid #c5c7d4" />` : ''}
+                      <div class="found__text"><div class="found__name">${esc(e.name)}</div><div class="found__sub">${e.elements.length} ปุ่ม: ${esc(e.elements.slice(0, 6).map((x) => x.label).join(', '))}${e.elements.length > 6 ? '…' : ''} · เห็น ${e.seen} ครั้ง · ลายเซ็น ${e.hashes.length}</div></div>
+                      <button class="xpbtn" data-sren="${esc(e.id)}">ชื่อ</button>
+                      <button class="xpbtn" data-sdel2="${esc(e.id)}">ลบ</button>
+                    </div>`,
+                  )
+                  .join('')
+          }
         </div>
       </div>`;
   }
@@ -714,7 +854,8 @@ export function openMacroDialog(
                   .join('')
           }
         </div>
-      </div>`;
+      </div>
+      ${screensPanel()}`;
   }
 
   function scheduleRow(s: ScheduleView): string {
@@ -850,6 +991,15 @@ export function openMacroDialog(
       render();
     });
     on('[data-ttest]', 'click', (el) => void testTemplate(openMacro()?.templateSet || currentSet, el.dataset.ttest!));
+
+    // ตา AI
+    const aq = q<HTMLInputElement>('#ai-query');
+    aq?.addEventListener('input', () => (aiQuery = aq.value));
+    aq?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') void aiLocate();
+    });
+    on('#ai-locate', 'click', () => void aiLocate());
+    on('#ai-describe', 'click', () => void aiDescribe());
 
     // ลากกรอบบนภาพ
     const box = q<HTMLElement>('#shot-box');
@@ -1088,6 +1238,32 @@ export function openMacroDialog(
       void api.templateDelete(currentSet, el.dataset.tdel!).then(() => reloadTemplates().then(render));
     });
     if (tab === 'templates') wireShot();
+
+    // แค็ตตาล็อกหน้าจอ + ตั้งค่าโมเดล
+    on('[data-sren]', 'click', (el) => {
+      const e = screens.find((x) => x.id === el.dataset.sren);
+      const name = window.prompt('ชื่อหน้าจอ (ใช้ใน if_screen / wait_screen)', e?.name ?? '');
+      if (!name || !e) return;
+      void api.screenRename(activeSet(), e.id, name).then(() => reloadTemplates().then(render));
+    });
+    on('[data-sdel2]', 'click', (el) => {
+      const e = screens.find((x) => x.id === el.dataset.sdel2);
+      if (!e || !window.confirm(`ลืมหน้า "${e.name}"? AI จะต้องอ่านใหม่เมื่อเจออีก`)) return;
+      void api.screenDelete(activeSet(), e.id).then(() => reloadTemplates().then(render));
+    });
+    on('#vlm-save', 'click', () => {
+      vlmStatus = null;
+      const model = (q<HTMLInputElement>('#vlm-model')?.value ?? '').trim();
+      const imageWidth = parseInt(q<HTMLInputElement>('#vlm-width')?.value ?? '', 10);
+      render();
+      void api
+        .vlmSettingsSave({ model: model || undefined, imageWidth: Number.isFinite(imageWidth) ? imageWidth : undefined })
+        .then((s) => {
+          vlmStatus = s;
+          log(s.ok ? 'info' : 'warn', `ตา AI: ${s.message}`);
+          render();
+        });
+    });
 
     // ตั้งเวลา
     on('#sc-add', 'click', () => {

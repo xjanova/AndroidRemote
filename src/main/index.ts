@@ -22,7 +22,9 @@ import { Ocr, ocrCacheDir } from './vision/ocr';
 import { captureFrame, previewJpeg, type Frame } from './vision/capture';
 import { scoreTemplate, warmUpMatcher } from './vision/match';
 import { getVolume, setVolume } from './device/volume';
-import type { DeviceProfile, FracRect, MacroView, ScheduleView, UiSelector, VolumeStream } from '../shared/automation';
+import { VlmClient } from './vision/vlm';
+import { ScreenCatalog } from './vision/catalog';
+import type { DeviceProfile, FracRect, MacroView, ScheduleView, UiSelector, VlmSettings, VolumeStream } from '../shared/automation';
 import { EmulatorManager } from './emulator/EmulatorManager';
 import type { CreateEmulatorSpec, EmulatorBrandId } from '../shared/emulator';
 import {
@@ -49,6 +51,8 @@ let scheduler: Scheduler;
 let profiles: ProfileStore;
 let templates: TemplateStore;
 let ocr: Ocr;
+let vlm: VlmClient;
+let catalog: ScreenCatalog;
 /** เฟรมล่าสุดต่อเครื่อง — ให้หลายขั้นตอนใน 300ms เดียวกันใช้ภาพเดียว และให้ตัดเทมเพลตจากภาพที่ผู้ใช้เห็น */
 const lastFrames = new Map<string, Frame>();
 async function captureCached(serial: string, maxAgeMs = 300): Promise<Frame> {
@@ -537,6 +541,33 @@ function registerIpc(): void {
     return ocr.read(f, rect, { digits });
   });
 
+  // ─── ตา AI + แค็ตตาล็อกหน้าจอ ───
+  ipcMain.handle(IPC.vlmStatus, () => vlm.status());
+  ipcMain.handle(IPC.vlmSettingsSave, (_e, patch: Partial<VlmSettings>) => {
+    vlm.update(patch);
+    return vlm.status();
+  });
+  ipcMain.handle(IPC.vlmLocate, async (_e, serial: string, query: string) => {
+    // ใช้ภาพเดียวกับที่ผู้ใช้เห็นใน preview — จะได้วาดกรอบทับได้ตรง
+    const f = lastFrames.get(serial) ?? (await captureCached(serial, 0));
+    const r = await vlm.locate(f, query);
+    pushLog('info', 'ตา AI', `หา "${query}": ${r.found ? `เจอ "${r.label ?? ''}"` : 'ไม่เจอ'} (${r.tookMs}ms)`);
+    return { ...r, via: 'vlm' as const };
+  });
+  ipcMain.handle(IPC.vlmDescribe, async (_e, serial: string, set: string | null) => {
+    const f = lastFrames.get(serial) ?? (await captureCached(serial, 0));
+    if (set) {
+      const started = Date.now();
+      const entry = await catalog.learn(set, f, vlm);
+      pushLog('info', 'ตา AI', `จำหน้า "${entry.name}" ในชุด ${set} (${entry.elements.length} ปุ่ม, ${Date.now() - started}ms)`);
+      return { screen: entry.name, elements: entry.elements, tookMs: Date.now() - started, entry };
+    }
+    return vlm.describe(f);
+  });
+  ipcMain.handle(IPC.screenList, (_e, set: string) => catalog.list(set).map((e) => ({ ...e, thumb: catalog.thumbDataUrl(set, e.id) })));
+  ipcMain.handle(IPC.screenRename, (_e, set: string, id: string, name: string) => catalog.rename(set, id, name));
+  ipcMain.handle(IPC.screenDelete, (_e, set: string, id: string) => catalog.delete(set, id));
+
   ipcMain.handle(IPC.volumeGet, (_e, serial: string, stream: VolumeStream) => getVolume(adb, serial, stream));
   ipcMain.handle(IPC.volumeSet, async (_e, serial: string, stream: VolumeStream, percent: number) => {
     const r = await setVolume(adb, serial, stream, percent);
@@ -715,6 +746,8 @@ if (!gotLock) {
     profiles = new ProfileStore(app.getPath('userData'));
     templates = new TemplateStore(path.join(app.getPath('userData'), 'templates'));
     ocr = new Ocr(ocrCacheDir(app.getPath('userData')), (level, message) => pushLog(level, 'OCR', message));
+    vlm = new VlmClient(path.join(app.getPath('userData'), 'vlm.json'), (level, message) => pushLog(level, 'ตา AI', message));
+    catalog = new ScreenCatalog(path.join(app.getPath('userData'), 'games'));
     warmUpMatcher();
     player = new MacroPlayer(
       {
@@ -724,6 +757,8 @@ if (!gotLock) {
         templates,
         capture: (serial) => captureCached(serial),
         ocr,
+        vlm,
+        catalog,
         profiles,
         getMacro: (id) => macroStore.get(id),
         setVolume: (serial, stream, percent) => setVolume(adb, serial, stream, percent),

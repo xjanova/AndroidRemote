@@ -15,6 +15,8 @@ import { MacroPlayer } from '../src/main/automation/Macros';
 import { ProfileStore, interpolate } from '../src/main/automation/Profiles';
 import { TemplateStore } from '../src/main/vision/templates';
 import { Ocr } from '../src/main/vision/ocr';
+import { VlmClient } from '../src/main/vision/vlm';
+import { ScreenCatalog } from '../src/main/vision/catalog';
 import { captureFrame, type Frame } from '../src/main/vision/capture';
 import { findTemplate } from '../src/main/vision/match';
 import { getVolume, setVolume } from '../src/main/device/volume';
@@ -102,6 +104,9 @@ async function main(): Promise<void> {
         return f;
       },
       ocr,
+      // ตา AI ไม่ถูกใช้ในเทสต์นี้ (ดู smoke:vlm) — ใส่ให้ครบ deps เท่านั้น
+      vlm: new VlmClient(path.join(tmp, 'vlm.json'), () => {}),
+      catalog: new ScreenCatalog(path.join(tmp, 'games')),
       profiles,
       getMacro: (id) => macrosById.get(id),
       setVolume: (s, st, p) => setVolume(adb, s, st, p),

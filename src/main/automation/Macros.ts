@@ -13,13 +13,15 @@ import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { AdbClient } from '../adb/AdbClient';
 import type { TouchInput } from '../../shared/api';
-import type { Macro, MacroRunLogEntry, MacroRunState, MacroStep, UiSelector, VolumeStream } from '../../shared/automation';
+import type { FracRect, Macro, MacroRunLogEntry, MacroRunState, MacroStep, ScreenEntry, UiSelector, VolumeStream } from '../../shared/automation';
 import { TOUCH_ACTION, KEY_ACTION, encodeKeycode, encodeText, encodeTouch } from '../server/messages';
 import { dumpUi, locate } from './UiDump';
 import type { Frame } from '../vision/capture';
 import { findTemplate, scoreTemplate } from '../vision/match';
 import type { TemplateStore } from '../vision/templates';
 import type { Ocr } from '../vision/ocr';
+import type { VlmClient } from '../vision/vlm';
+import type { ScreenCatalog } from '../vision/catalog';
 import { interpolate, type ProfileStore } from './Profiles';
 
 type Log = (level: 'info' | 'warn' | 'error', message: string) => void;
@@ -167,10 +169,16 @@ export interface PlayerDeps {
   /** จับภาพหน้าจอ (ฝั่งเรียกแคชสั้นๆ ให้ เพื่อให้หลาย step ใช้เฟรมเดียวกันได้) */
   capture: (serial: string) => Promise<Frame>;
   ocr: Ocr;
+  /** ตา AI (โมเดลภาพ) + แค็ตตาล็อกหน้าจอที่จำคำตอบไว้ */
+  vlm: VlmClient;
+  catalog: ScreenCatalog;
   profiles: ProfileStore;
   getMacro: (id: string) => Macro | undefined;
   setVolume: (serial: string, stream: VolumeStream, percent: number) => Promise<{ ok: boolean; via: string }>;
 }
+
+/** ชุดเทมเพลตของมาโคร = ชื่อเกม — ใช้เป็นกุญแจแค็ตตาล็อกหน้าจอด้วย */
+const DEFAULT_SET = 'default';
 
 /** ช่องว่างระหว่างขั้นตอนที่บันทึกไว้ยาวเกินนี้ให้ตัดเหลือเท่านี้ — ไม่มีใครอยากรอคนบันทึกไปเข้าห้องน้ำ */
 const MAX_GAP_MS = 15_000;
@@ -560,7 +568,102 @@ export class MacroPlayer extends EventEmitter {
         return { stop: 'ok', message: step.message ? v(step.message) : undefined };
       case 'fail':
         return { stop: 'fail', message: step.message ? v(step.message) : 'มาโครสั่งล้มเหลว' };
+      case 'vlm_tap': {
+        const set = ctx.templateSet ?? DEFAULT_SET;
+        const query = v(step.query);
+        const learn = step.learn !== false;
+        const deadline = Date.now() + (step.timeoutMs ?? 30_000);
+        for (;;) {
+          const frame = await this.deps.capture(serial);
+          const hit = await this.locateWithMemory(set, frame, query, learn, serial);
+          if (hit) {
+            this.note(serial, 'info', `${hit.via === 'catalog' ? 'จำได้' : 'AI เห็น'} "${hit.label}" (${hit.tookMs}ms) → แตะ`);
+            await this.tapFrac(ctx, hit.rect.fx + hit.rect.fw / 2, hit.rect.fy + hit.rect.fh / 2, screen, 60);
+            return {};
+          }
+          if (Date.now() >= deadline) throw new Error(`AI หา "${query}" บนจอไม่เจอ`);
+          if (this.cancelled) throw new Error('หยุดกลางคัน');
+          await sleep(1000);
+        }
+      }
+      case 'vlm_var': {
+        const frame = await this.deps.capture(serial);
+        const r = await this.deps.vlm.answer(frame, v(step.question));
+        ctx.vars[step.name] = r.text;
+        this.note(serial, 'info', `${step.name} = "${r.text}" (AI ${r.tookMs}ms)`);
+        return {};
+      }
+      case 'if_screen': {
+        const frame = await this.deps.capture(serial);
+        const entry = await this.currentScreen(ctx.templateSet ?? DEFAULT_SET, frame, serial);
+        const matched = entry ? textMatches(entry.name, v(step.screen)) : false;
+        this.note(serial, 'info', `หน้า "${entry?.name ?? '?'}" ${matched ? 'ตรง' : 'ไม่ตรง'} "${step.screen}"`);
+        if (matched === step.found) return { jump: this.jumpTo(labels, step.goto, ctx) };
+        return {};
+      }
+      case 'wait_screen': {
+        const want = v(step.screen);
+        const deadline = Date.now() + step.timeoutMs;
+        for (;;) {
+          const frame = await this.deps.capture(serial);
+          const entry = await this.currentScreen(ctx.templateSet ?? DEFAULT_SET, frame, serial);
+          if (entry && textMatches(entry.name, want)) return {};
+          if (Date.now() >= deadline) throw new Error(`รอหน้า "${want}" ไม่ทันเวลา (ตอนนี้ "${entry?.name ?? '?'}")`);
+          if (this.cancelled) throw new Error('หยุดกลางคัน');
+          await sleep(700);
+        }
+      }
+      case 'screen_var': {
+        const frame = await this.deps.capture(serial);
+        const entry = await this.currentScreen(ctx.templateSet ?? DEFAULT_SET, frame, serial);
+        ctx.vars[step.name] = entry?.name ?? '';
+        this.note(serial, 'info', `${step.name} = "${ctx.vars[step.name]}"`);
+        return {};
+      }
     }
+  }
+
+  /**
+   * หาปุ่มจากคำบรรยาย: แค็ตตาล็อกก่อน (จำได้ = ทันที) → ไม่รู้จักหน้า ให้โมเดลตั้งชื่อ+บอกปุ่ม → ยังไม่เจอ ถามพิกัดตรงๆ
+   * ทุกอย่างที่โมเดลบอกถูกจำไว้ ครั้งหน้าหน้าเดิมคำเดิมไม่ต้องถามอีก
+   */
+  private async locateWithMemory(
+    set: string,
+    frame: Frame,
+    query: string,
+    learn: boolean,
+    serial: string,
+  ): Promise<{ rect: FracRect; via: 'catalog' | 'vlm'; label: string; tookMs: number } | null> {
+    const started = Date.now();
+    const id = await this.deps.catalog.identify(set, frame);
+    let entry: ScreenEntry | undefined = id.entry;
+    if (entry) {
+      this.deps.catalog.touch(set, entry, id.hash, id.distance);
+    } else if (learn) {
+      entry = await this.deps.catalog.learn(set, frame, this.deps.vlm, id.hash);
+      this.note(serial, 'info', `จำหน้าใหม่ "${entry.name}" (${entry.elements.length} ปุ่ม)`);
+    }
+    if (entry) {
+      const el = this.deps.catalog.findElement(entry, query);
+      if (el) return { rect: el.rect, via: 'catalog', label: el.label, tookMs: Date.now() - started };
+    }
+    const r = await this.deps.vlm.locate(frame, query);
+    if (!r.found || !r.rect) return null;
+    const label = r.label?.trim() || query;
+    if (entry && learn) this.deps.catalog.addElement(set, entry.id, { label, kind: 'button', rect: r.rect }, query);
+    return { rect: r.rect, via: 'vlm', label, tookMs: Date.now() - started };
+  }
+
+  /** หน้าจอตอนนี้ตามแค็ตตาล็อก — ไม่รู้จักให้โมเดลตั้งชื่อแล้วจำ */
+  private async currentScreen(set: string, frame: Frame, serial: string): Promise<ScreenEntry | null> {
+    const id = await this.deps.catalog.identify(set, frame);
+    if (id.entry) {
+      this.deps.catalog.touch(set, id.entry, id.hash, id.distance);
+      return id.entry;
+    }
+    const entry = await this.deps.catalog.learn(set, frame, this.deps.vlm, id.hash);
+    this.note(serial, 'info', `จำหน้าใหม่ "${entry.name}" (${entry.elements.length} ปุ่ม)`);
+    return entry;
   }
 
   /** แตะแบบพิกัดสัดส่วน + เขย่าเล็กน้อยถ้าเปิด humanize */

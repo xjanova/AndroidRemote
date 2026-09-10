@@ -113,6 +113,13 @@ const api: AndroidRemoteApi = {
   ocrTest: (serial, rect, digits) => ipcRenderer.invoke(IPC.ocrTest, serial, rect, digits),
   volumeGet: (serial, stream) => ipcRenderer.invoke(IPC.volumeGet, serial, stream),
   volumeSet: (serial, stream, percent) => ipcRenderer.invoke(IPC.volumeSet, serial, stream, percent),
+  vlmStatus: () => ipcRenderer.invoke(IPC.vlmStatus),
+  vlmSettingsSave: (patch) => ipcRenderer.invoke(IPC.vlmSettingsSave, patch),
+  vlmLocate: (serial, query) => ipcRenderer.invoke(IPC.vlmLocate, serial, query),
+  vlmDescribe: (serial, set) => ipcRenderer.invoke(IPC.vlmDescribe, serial, set),
+  screenList: (set) => ipcRenderer.invoke(IPC.screenList, set),
+  screenRename: (set, id, name) => ipcRenderer.invoke(IPC.screenRename, set, id, name) as Promise<void>,
+  screenDelete: (set, id) => ipcRenderer.invoke(IPC.screenDelete, set, id) as Promise<void>,
   onMacroState: (cb) => subscribe<MacroRunState>(IPC.evtMacroState, cb),
 
   windowMinimize: () => ipcRenderer.send(IPC.windowMinimize),

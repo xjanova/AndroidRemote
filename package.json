@@ -24,7 +24,8 @@
     "smoke:automation": "tsx scripts/smoke-automation.ts",
     "smoke:mirror": "tsx scripts/smoke-mirror.ts",
     "smoke:nox": "tsx scripts/smoke-nox.ts",
-    "smoke:automation2": "tsx scripts/smoke-automation2.ts"
+    "smoke:automation2": "tsx scripts/smoke-automation2.ts",
+    "smoke:vlm": "tsx scripts/smoke-vision.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

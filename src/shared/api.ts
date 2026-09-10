@@ -11,10 +11,15 @@ import type {
   MacroView,
   MatchResult,
   ScheduleView,
+  ScreenEntry,
   ScreenshotPreview,
   TemplateInfo,
   UiNodeView,
   UiSelector,
+  VlmDescribeResult,
+  VlmLocateResult,
+  VlmSettings,
+  VlmStatus,
   VolumeStream,
 } from './automation';
 import type {
@@ -201,6 +206,17 @@ export interface AndroidRemoteApi {
   volumeGet(serial: string, stream: VolumeStream): Promise<{ index: number; max: number; percent: number } | null>;
   volumeSet(serial: string, stream: VolumeStream, percent: number): Promise<{ ok: boolean; via: string }>;
 
+  /** ─── ตา AI (โมเดลภาพผ่าน Ollama) + แค็ตตาล็อกหน้าจอ ─── */
+  vlmStatus(): Promise<VlmStatus>;
+  vlmSettingsSave(patch: Partial<VlmSettings>): Promise<VlmStatus>;
+  /** ให้ AI หาสิ่งที่บรรยายบนภาพหน้าจอล่าสุดที่ preview ไว้ (หรือถ่ายใหม่ถ้ายังไม่มี) */
+  vlmLocate(serial: string, query: string): Promise<VlmLocateResult>;
+  /** ให้ AI ตั้งชื่อหน้า + บอกปุ่ม — ระบุชุด (ชื่อเกม) แล้วจะบันทึกเข้าแค็ตตาล็อกด้วย */
+  vlmDescribe(serial: string, set: string | null): Promise<VlmDescribeResult>;
+  screenList(set: string): Promise<Array<ScreenEntry & { thumb: string | null }>>;
+  screenRename(set: string, id: string, name: string): Promise<void>;
+  screenDelete(set: string, id: string): Promise<void>;
+
   /** ─── อัปเดตตัวแอป ─── */
   updateState(): Promise<UpdateStateView>;
   updateCheck(): Promise<UpdateStateView>;
@@ -324,6 +340,13 @@ export const IPC = {
   ocrTest: 'ocr:test',
   volumeGet: 'volume:get',
   volumeSet: 'volume:set',
+  vlmStatus: 'vlm:status',
+  vlmSettingsSave: 'vlm:settings-save',
+  vlmLocate: 'vlm:locate',
+  vlmDescribe: 'vlm:describe',
+  screenList: 'screen:list',
+  screenRename: 'screen:rename',
+  screenDelete: 'screen:delete',
   mirrorTouch: 'mirror:touch',
   mirrorKey: 'mirror:key',
   mirrorScreenPower: 'mirror:screen-power',
